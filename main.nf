@@ -19,11 +19,11 @@ def helpMessage() {
 
     The typical command for running the pipeline is as follows:
 
-    nextflow run nf-core/crispresso --reads '*_R{1,2}.fastq.gz' -profile standard,docker
+    nextflow run nf-core/crispresso --reads '*_R{1,2}.fastq.gz' --samplesheet samplesheet.csv -profile standard,docker
 
     Mandatory arguments:
       --reads                       Path to input data (must be surrounded with quotes)
-      --genome                      Name of iGenomes reference
+      --samplesheet                 Comma-separated variable file containing a sample id, amplicon sequence, and guide sequence in each row
       -profile                      Configuration profile to use. Can use multiple (comma separated)
                                     Available: standard, conda, docker, singularity, awsbatch, test
 
@@ -104,21 +104,32 @@ if( workflow.profile == 'awsbatch') {
              .from(params.readPaths)
              .map { row -> [ row[0], [file(row[1][0])]] }
              .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-             .into { read_files_fastqc; read_files_trimming }
+             .into { read_files_fastqc; read_files_crispresso }
      } else {
          Channel
              .from(params.readPaths)
              .map { row -> [ row[0], [file(row[1][0]), file(row[1][1])]] }
              .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-             .into { read_files_fastqc; read_files_trimming }
+             .into { read_files_fastqc; read_files_crispresso }
      }
  } else {
      Channel
          .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
          .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --singleEnd on the command line." }
-         .into { read_files_fastqc; read_files_trimming }
+         .into { read_files_fastqc; read_files_crispresso }
  }
 
+
+Channel
+  .fromPath(params.samplesheet)
+  .splitCsv(header:false)
+  .map{ row -> tuple(row[0], tuple(row[1], row[2]))}
+  .ifEmpty { exit 1, "Cannot parse input csv ${params.samplesheet}" }
+  .set{ samplesheet_ch }
+
+// Look up the guide RNA and amplicon sequence for each sample
+samplesheet_ch.join(read_files_crispresso)
+  .into{ sample_info }
 
 // Header log info
 log.info """=======================================================
@@ -200,36 +211,39 @@ process get_software_versions {
 
 
 /*
- * STEP 1 - FastQC
+ * STEP 2 - CRISPResso
  */
-process fastqc {
+process crispresso {
     tag "$name"
-    publishDir "${params.outdir}/fastqc", mode: 'copy',
+    publishDir "${params.outdir}/cripresso", mode: 'copy',
         saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
 
     input:
-    set val(name), file(reads) from read_files_fastqc
+    set val(name), val(amplicon_guide), file(reads) from sample_info
 
     output:
-    file "*_fastqc.{zip,html}" into fastqc_results
+    file "${name}"
 
     script:
+    amplicon = amplicon_guide[0]
+    guide = amplicon_guide[1]
     """
-    fastqc -q $reads
+    CRISPResso -r1 ${reads[0]} \\
+      -r2 ${reads[1]} \\
+      --trimmomatic_options_string '' \\
+      -a $amplicon -g $guide -o ${name}
     """
 }
 
 
-
 /*
- * STEP 2 - MultiQC
+ * STEP 3 - MultiQC
  */
 process multiqc {
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
 
     input:
     file multiqc_config
-    file ('fastqc/*') from fastqc_results.collect()
     file ('software_versions/*') from software_versions_yaml
     file workflow_summary from create_workflow_summary(summary)
 
@@ -242,27 +256,6 @@ process multiqc {
     rfilename = custom_runName ? "--filename " + custom_runName.replaceAll('\\W','_').replaceAll('_+','_') + "_multiqc_report" : ''
     """
     multiqc -f $rtitle $rfilename --config $multiqc_config .
-    """
-}
-
-
-
-/*
- * STEP 3 - Output Description HTML
- */
-process output_documentation {
-    tag "$prefix"
-    publishDir "${params.outdir}/Documentation", mode: 'copy'
-
-    input:
-    file output_docs
-
-    output:
-    file "results_description.html"
-
-    script:
-    """
-    markdown_to_html.r $output_docs results_description.html
     """
 }
 
