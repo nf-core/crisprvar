@@ -1,11 +1,11 @@
 #!/usr/bin/env nextflow
 /*
 ========================================================================================
-                         nf-core/crispresso
+                         nf-core/crisprvar
 ========================================================================================
- nf-core/crispresso Analysis Pipeline.
+ nf-core/crisprvar Analysis Pipeline.
  #### Homepage / Documentation
- https://github.com/nf-core/crispresso
+ https://github.com/nf-core/crisprvar
 ----------------------------------------------------------------------------------------
 */
 
@@ -13,13 +13,13 @@
 def helpMessage() {
     log.info"""
     =========================================
-     nf-core/crispresso v${workflow.manifest.version}
+     nf-core/crisprvar v${workflow.manifest.version}
     =========================================
     Usage:
 
     The typical command for running the pipeline is as follows:
 
-    nextflow run nf-core/crispresso --reads '*_R{1,2}.fastq.gz' --samplesheet samplesheet.csv -profile standard,docker
+    nextflow run nf-core/crisprvar --reads '*_R{1,2}.fastq.gz' --samplesheet samplesheet.csv -profile standard,docker
 
     Mandatory arguments:
       --reads                       Path to input data (must be surrounded with quotes)
@@ -104,19 +104,19 @@ if( workflow.profile == 'awsbatch') {
              .from(params.readPaths)
              .map { row -> [ row[0], [file(row[1][0])]] }
              .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-             .into { read_files_fastqc; read_files_crispresso }
+             .into { read_files_fastqc; read_files_crisprvar }
      } else {
          Channel
              .from(params.readPaths)
              .map { row -> [ row[0], [file(row[1][0]), file(row[1][1])]] }
              .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-             .into { read_files_fastqc; read_files_crispresso }
+             .into { read_files_fastqc; read_files_crisprvar }
      }
  } else {
      Channel
          .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
          .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --singleEnd on the command line." }
-         .into { read_files_fastqc; read_files_crispresso }
+         .into { read_files_fastqc; read_files_crisprvar }
  }
 
 
@@ -128,7 +128,7 @@ Channel
   .set{ samplesheet_ch }
 
 // Look up the guide RNA and amplicon sequence for each sample
-samplesheet_ch.join(read_files_crispresso)
+samplesheet_ch.join(read_files_crisprvar)
   .into{ sample_info }
 
 // Header log info
@@ -139,10 +139,10 @@ log.info """=======================================================
     | \\| |       \\__, \\__/ |  \\ |___     \\`-._,-`-,
                                           `._,._,\'
 
-nf-core/crispresso v${workflow.manifest.version}"
+nf-core/crisprvar v${workflow.manifest.version}"
 ======================================================="""
 def summary = [:]
-summary['Pipeline Name']  = 'nf-core/crispresso'
+summary['Pipeline Name']  = 'nf-core/crisprvar'
 summary['Pipeline Version'] = workflow.manifest.version
 summary['Run Name']     = custom_runName ?: workflow.runName
 summary['Reads']        = params.reads
@@ -175,10 +175,10 @@ def create_workflow_summary(summary) {
 
     def yaml_file = workDir.resolve('workflow_summary_mqc.yaml')
     yaml_file.text  = """
-    id: 'nf-core-crispresso-summary'
+    id: 'nf-core-crisprvar-summary'
     description: " - this information is collected when the pipeline is started."
-    section_name: 'nf-core/crispresso Workflow Summary'
-    section_href: 'https://github.com/nf-core/crispresso'
+    section_name: 'nf-core/crisprvar Workflow Summary'
+    section_href: 'https://github.com/nf-core/crisprvar'
     plot_type: 'html'
     data: |
         <dl class=\"dl-horizontal\">
@@ -267,9 +267,9 @@ process multiqc {
 workflow.onComplete {
 
     // Set up the e-mail variables
-    def subject = "[nf-core/crispresso] Successful: $workflow.runName"
+    def subject = "[nf-core/crisprvar] Successful: $workflow.runName"
     if(!workflow.success){
-      subject = "[nf-core/crispresso] FAILED: $workflow.runName"
+      subject = "[nf-core/crisprvar] FAILED: $workflow.runName"
     }
     def email_fields = [:]
     email_fields['version'] = workflow.manifest.version
@@ -317,11 +317,11 @@ workflow.onComplete {
           if( params.plaintext_email ){ throw GroovyException('Send plaintext e-mail, not HTML') }
           // Try to send HTML e-mail using sendmail
           [ 'sendmail', '-t' ].execute() << sendmail_html
-          log.info "[nf-core/crispresso] Sent summary e-mail to $params.email (sendmail)"
+          log.info "[nf-core/crisprvar] Sent summary e-mail to $params.email (sendmail)"
         } catch (all) {
           // Catch failures and try with plaintext
           [ 'mail', '-s', subject, params.email ].execute() << email_txt
-          log.info "[nf-core/crispresso] Sent summary e-mail to $params.email (mail)"
+          log.info "[nf-core/crisprvar] Sent summary e-mail to $params.email (mail)"
         }
     }
 
@@ -335,6 +335,6 @@ workflow.onComplete {
     def output_tf = new File( output_d, "pipeline_report.txt" )
     output_tf.withWriter { w -> w << email_txt }
 
-    log.info "[nf-core/crispresso] Pipeline Complete"
+    log.info "[nf-core/crisprvar] Pipeline Complete"
 
 }

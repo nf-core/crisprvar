@@ -1,6 +1,6 @@
-# nf-core/crispresso: Documentation
+# nf-core/crisprvar: Documentation
 
-The nf-core/crispresso documentation is split into the following files:
+The nf-core/crisprvar documentation is split into the following files:
 
 1. [Installation](installation.md)
 2. [Running the pipeline](usage.md)

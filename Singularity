@@ -2,11 +2,11 @@ From:nfcore/base
 Bootstrap:docker
 
 %labels
-    DESCRIPTION Singularity image containing all requirements for the nf-core/crispresso pipeline
+    DESCRIPTION Singularity image containing all requirements for the nf-core/crisprvar pipeline
     VERSION 1.0dev
 
 %environment
-    PATH=/opt/conda/envs/nf-core-crispresso-1.0dev/bin:$PATH
+    PATH=/opt/conda/envs/nf-core-crisprvar-1.0dev/bin:$PATH
     export PATH
 
 %files

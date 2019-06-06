@@ -1,11 +1,11 @@
-# nf-core/crispresso
+# nf-core/crisprvar
 **Run CRISPResso on genome editing experiments**
 
-[![Build Status](https://travis-ci.org/nf-core/crispresso.svg?branch=master)](https://travis-ci.org/nf-core/crispresso)
+[![Build Status](https://travis-ci.org/nf-core/crisprvar.svg?branch=master)](https://travis-ci.org/nf-core/crisprvar)
 [![Nextflow](https://img.shields.io/badge/nextflow-%E2%89%A50.32.0-brightgreen.svg)](https://www.nextflow.io/)
 
 [![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg)](http://bioconda.github.io/)
-[![Docker](https://img.shields.io/docker/automated/nfcore/crispresso.svg)](https://hub.docker.com/r/nfcore/crispresso)
+[![Docker](https://img.shields.io/docker/automated/nfcore/crisprvar.svg)](https://hub.docker.com/r/nfcore/crisprvar)
 ![Singularity Container available](
 https://img.shields.io/badge/singularity-available-7E4C74.svg)
 
@@ -14,7 +14,7 @@ The pipeline is built using [Nextflow](https://www.nextflow.io), a workflow tool
 
 
 ### Documentation
-The nf-core/crispresso pipeline comes with documentation about the pipeline, found in the `docs/` directory:
+The nf-core/crisprvar pipeline comes with documentation about the pipeline, found in the `docs/` directory:
 
 1. [Installation](docs/installation.md)
 2. Pipeline configuration

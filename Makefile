@@ -5,9 +5,9 @@ test:
 		--samplesheet test-data/samplesheet.csv -ansi-log false
 
 docker_build:
-	docker build -t czbiohub/crispresso .
+	docker build -t czbiohub/crisprvar .
 
 docker_push:
 	sudo docker login
-	sudo docker push czbiohub/crispresso
+	sudo docker push czbiohub/crisprvar
 	docker images

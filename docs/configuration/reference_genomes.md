@@ -1,6 +1,6 @@
-# nf-core/crispresso: Reference Genomes Configuration
+# nf-core/crisprvar: Reference Genomes Configuration
 
-The nf-core/crispresso pipeline needs a reference genome for alignment and annotation.
+The nf-core/crisprvar pipeline needs a reference genome for alignment and annotation.
 
 These paths can be supplied on the command line at run time (see the [usage docs](../usage.md)),
 but for convenience it's often better to save these paths in a nextflow config file.

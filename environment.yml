@@ -1,4 +1,4 @@
-name: nf-core-crispresso-1.0dev
+name: nf-core-crisprvar-1.0dev
 channels:
   - bioconda
   - conda-forge
