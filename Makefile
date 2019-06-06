@@ -6,3 +6,8 @@ test:
 
 docker_build:
 	docker build -t czbiohub/crispresso .
+
+docker_push:
+	sudo docker login
+	sudo docker push czbiohub/crispresso
+	docker images
