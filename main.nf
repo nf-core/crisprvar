@@ -29,6 +29,7 @@ def helpMessage() {
 
     Options:
       --singleEnd                   Specifies that the input is single end reads
+      --adapters                    Path to fasta file of adapter sequences
 
     References                      If not specified in the configuration file or you wish to overwrite any of the references.
       --fasta                       Path to Fasta reference
@@ -127,6 +128,13 @@ Channel
   .ifEmpty { exit 1, "Cannot parse input csv ${params.samplesheet}" }
   .set{ samplesheet_ch }
 
+if (params.adapters){
+  Channel.fromPath(params.adapters)
+         .ifEmpty { exit 1, "Cannot find any adapters matching: ${params.adapters}" }
+         .into { adapters_ch }
+
+}
+
 // Look up the guide RNA and amplicon sequence for each sample
 samplesheet_ch.join(read_files_crisprvar)
   .into{ sample_info }
@@ -220,6 +228,7 @@ process crispresso {
 
     input:
     set val(name), val(amplicon_guide), file(reads) from sample_info
+    file adapters from adapters_ch
 
     output:
     file "${name}"
@@ -227,10 +236,12 @@ process crispresso {
     script:
     amplicon = amplicon_guide[0]
     guide = amplicon_guide[1]
+    trimmomatic_options_string = "ILLUMINACLIP:${adapters}:3:30:1:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36"
     """
     CRISPResso -r1 ${reads[0]} \\
       -r2 ${reads[1]} \\
-      --trimmomatic_options_string '' \\
+       --trim_sequences \\
+       --trimmomatic_options_string ${trimmomatic_options_string} \\
       -a $amplicon -g $guide -o ${name}
     """
 }
