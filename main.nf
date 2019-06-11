@@ -228,7 +228,7 @@ process crispresso {
 
     input:
     set val(name), val(amplicon_guide), file(reads) from sample_info
-    file adapters from adapters_ch
+    file adapters from adapters_ch.collect()
 
     output:
     file "${name}"
