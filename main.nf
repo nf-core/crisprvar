@@ -29,10 +29,12 @@ def helpMessage() {
 
     Options:
       --singleEnd                   Specifies that the input is single end reads
+      --hdr                         Specifies that the input sample sheet contains expected_hdr_amplicon_seq header
       --adapters                    Path to fasta file of adapter sequences
 
-    References                      If not specified in the configuration file or you wish to overwrite any of the references.
-      --fasta                       Path to Fasta reference
+    QC:
+      --skipQC                      Skip all QC steps apart from MultiQC
+      --skipFastQC                  Skip FastQC
 
     Other options:
       --outdir                      The output directory where the results will be saved
@@ -57,7 +59,6 @@ if (params.help){
 
 // Configurable variables
 params.name = false
-params.fasta = params.genome ? params.genomes[ params.genome ].fasta ?: false : false
 params.multiqc_config = "$baseDir/conf/multiqc_config.yaml"
 params.email = false
 params.plaintext_email = false
@@ -65,11 +66,7 @@ params.plaintext_email = false
 multiqc_config = file(params.multiqc_config)
 output_docs = file("$baseDir/docs/output.md")
 
-// Validate inputs
-if ( params.fasta ){
-    fasta = file(params.fasta)
-    if( !fasta.exists() ) exit 1, "Fasta file not found: ${params.fasta}"
-}
+
 // AWSBatch sanity checking
 if(workflow.profile == 'awsbatch'){
     if (!params.awsqueue || !params.awsregion) exit 1, "Specify correct --awsqueue and --awsregion parameters on AWSBatch!"
@@ -105,39 +102,48 @@ if( workflow.profile == 'awsbatch') {
              .from(params.readPaths)
              .map { row -> [ row[0], [file(row[1][0])]] }
              .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-             .into { read_files_fastqc; read_files_crisprvar }
+             .into { raw_reads_fastqc; raw_reads_trimgalore }
      } else {
          Channel
              .from(params.readPaths)
              .map { row -> [ row[0], [file(row[1][0]), file(row[1][1])]] }
              .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-             .into { read_files_fastqc; read_files_crisprvar }
+             .into { raw_reads_fastqc; raw_reads_trimgalore }
      }
  } else {
      Channel
          .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
-         .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nIf this is single-end data, please specify --singleEnd on the command line." }
-         .into { read_files_fastqc; read_files_crisprvar }
+         .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nNB: Path requires at least one * wildcard!\nIf this is single-end data, please specify --singleEnd on the command line." }
+         .into { raw_reads_fastqc; raw_reads_trimgalore }
  }
 
 
-Channel
-  .fromPath(params.samplesheet)
-  .splitCsv(header:false)
-  .map{ row -> tuple(row[0], tuple(row[1], row[2]))}
-  .ifEmpty { exit 1, "Cannot parse input csv ${params.samplesheet}" }
-  .set{ samplesheet_ch }
-
-if (params.adapters){
-  Channel.fromPath(params.adapters)
-         .ifEmpty { exit 1, "Cannot find any adapters matching: ${params.adapters}" }
-         .into { adapters_ch }
-
+if (params.hdr){
+  samplesheet_ch = Channel
+    .fromPath(params.samplesheet)
+    .splitCsv(header:true)
+    .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.expected_hdr_amplicon_seq, row.guide_seq))}
+    .ifEmpty { exit 1, "Cannot parse input csv ${params.samplesheet}" }
+} else {
+  samplesheet_ch = Channel
+    .fromPath(params.samplesheet)
+    .splitCsv(header:true)
+    .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.guide_seq))}
+    .ifEmpty { exit 1, "Cannot parse input csv ${params.samplesheet}" }
 }
 
-// Look up the guide RNA and amplicon sequence for each sample
-samplesheet_ch.join(read_files_crisprvar)
-  .into{ sample_info }
+Channel.fromPath("$baseDir/assets/where_are_my_files.txt", checkIfExists: true)
+       .into{ch_where_trim_galore; ch_where_star; ch_where_hisat2; ch_where_hisat2_sort}
+
+// Define regular variables so that they can be overwritten
+clip_r1 = params.clip_r1
+clip_r2 = params.clip_r2
+three_prime_clip_r1 = params.three_prime_clip_r1
+three_prime_clip_r2 = params.three_prime_clip_r2
+forwardStranded = params.forwardStranded
+reverseStranded = params.reverseStranded
+unStranded = params.unStranded
+
 
 // Header log info
 log.info """=======================================================
@@ -217,6 +223,78 @@ process get_software_versions {
 }
 
 
+/*
+ * STEP 1 - FastQC
+ */
+process fastqc {
+    tag "$name"
+    publishDir "${params.outdir}/fastqc", mode: 'copy',
+        saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
+
+    when:
+    !params.skipQC && !params.skipFastQC
+
+    input:
+    set val(name), file(reads) from raw_reads_fastqc
+
+    output:
+    file "*_fastqc.{zip,html}" into fastqc_results
+
+    script:
+    """
+    fastqc -q $reads
+    """
+}
+
+
+
+/*
+ * STEP 2 - Trim Galore!
+ */
+process trim_galore {
+    label 'low_memory'
+    tag "$name"
+    publishDir "${params.outdir}/trim_galore", mode: 'copy',
+        saveAs: {filename ->
+            if (filename.indexOf("_fastqc") > 0) "FastQC/$filename"
+            else if (filename.indexOf("trimming_report.txt") > 0) "logs/$filename"
+            else if (!params.saveTrimmed && filename == "where_are_my_files.txt") filename
+            else if (params.saveTrimmed && filename != "where_are_my_files.txt") filename
+            else null
+        }
+
+    input:
+    set val(name), file(reads) from raw_reads_trimgalore
+    file wherearemyfiles from ch_where_trim_galore.collect()
+
+    output:
+    set val(name), file("*fq.gz") into trimmed_reads_crispresso
+    file "*trimming_report.txt" into trimgalore_results
+    file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
+    file "where_are_my_files.txt"
+
+
+    script:
+    c_r1 = clip_r1 > 0 ? "--clip_r1 ${clip_r1}" : ''
+    c_r2 = clip_r2 > 0 ? "--clip_r2 ${clip_r2}" : ''
+    tpc_r1 = three_prime_clip_r1 > 0 ? "--three_prime_clip_r1 ${three_prime_clip_r1}" : ''
+    tpc_r2 = three_prime_clip_r2 > 0 ? "--three_prime_clip_r2 ${three_prime_clip_r2}" : ''
+    nextseq = params.trim_nextseq > 0 ? "--nextseq ${params.trim_nextseq}" : ''
+    if (params.singleEnd) {
+        """
+        trim_galore --fastqc --gzip $c_r1 $tpc_r1 $nextseq $reads
+        """
+    } else {
+        """
+        trim_galore --paired --fastqc --gzip $c_r1 $c_r2 $tpc_r1 $tpc_r2 $nextseq $reads
+        """
+    }
+}
+
+
+
+// Look up the guide RNA and amplicon sequence for each sample
+crispresso_input = samplesheet_ch.join(trimmed_reads_crispresso)
 
 /*
  * STEP 2 - CRISPResso
@@ -227,23 +305,36 @@ process crispresso {
         saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
 
     input:
-    set val(name), val(amplicon_guide), file(reads) from sample_info
-    file adapters from adapters_ch.collect()
+    set val(name), val(experiment_info), file(reads) from crispresso_input
 
     output:
     file "${name}"
 
     script:
-    amplicon = amplicon_guide[0]
-    guide = amplicon_guide[1]
-    trimmomatic_options_string = "ILLUMINACLIP:${adapters}:3:30:1:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36"
-    """
-    CRISPResso -r1 ${reads[0]} \\
-      -r2 ${reads[1]} \\
-       --trim_sequences \\
-       --trimmomatic_options_string "${trimmomatic_options_string}" \\
-      -a $amplicon -g $guide -o ${name}
-    """
+
+    if (params.hdr){
+      amplicon_wt = experiment_info[0]
+      amplicon_hdr = experiment_info[1]
+      guide = experiment_info[2]
+      """
+      CRISPResso -r1 ${reads[0]} \\
+        -r2 ${reads[1]} \\
+         --amplicon_seq $amplicon_wt \\
+         --expected_hdr_amplicon_seq $amplicon_hdr \\
+         --guide_seq $guide \\
+         --output_folder ${name}
+      """
+    } else {
+      amplicon = experiment_info[0]
+      guide = experiment_info[1]
+      """
+      CRISPResso -r1 ${reads[0]} \\
+        -r2 ${reads[1]} \\
+         --amplicon_seq $amplicon \\
+         --guide_seq $guide \\
+         --output_folder ${name}
+      """
+    }
 }
 
 
@@ -255,6 +346,8 @@ process multiqc {
 
     input:
     file multiqc_config
+    file (fastqc:'fastqc/*') from fastqc_results.collect().ifEmpty([])
+    file ('trimgalore/*') from trimgalore_results.collect()
     file ('software_versions/*') from software_versions_yaml
     file workflow_summary from create_workflow_summary(summary)
 
