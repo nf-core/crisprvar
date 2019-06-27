@@ -135,7 +135,7 @@ if (!params.excel){
 
      script:
      """
-     tr -d '\r' $samplesheet > samplesheet_cleaned.csv
+     dos2unix ${samplesheet} > samplesheet_cleaned.csv
      """
   }
 } else {
@@ -143,11 +143,8 @@ if (!params.excel){
      tag "$name"
      publishDir "${params.outdir}/samplesheet", mode: 'copy'
 
-     when:
-     set samplesheet from params.samplesheet
-
      input:
-     set val(name), file(reads) from raw_reads_fastqc
+     set samplesheet from params.samplesheet
 
      output:
      file "samplesheet_cleaned.csv" into samplesheet_cleaned
@@ -162,14 +159,12 @@ if (!params.excel){
 
 
 if (params.hdr){
-  samplesheet_ch = Channel
-    .fromPath(samplesheet_cleaned)
+  samplesheet_ch = samplesheet_cleaned
     .splitCsv(header:true)
     .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.expected_hdr_amplicon_seq, row.guide_seq))}
     .ifEmpty { exit 1, "Cannot parse input csv ${params.samplesheet}" }
 } else {
-  samplesheet_ch = Channel
-    .fromPath(samplesheet_cleaned)
+  samplesheet_ch = samplesheet_cleaned
     .splitCsv(header:true)
     .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.guide_seq))}
     .ifEmpty { exit 1, "Cannot parse input csv ${params.samplesheet}" }
