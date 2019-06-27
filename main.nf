@@ -118,6 +118,12 @@ if( workflow.profile == 'awsbatch') {
          .into { raw_reads_fastqc; raw_reads_trimgalore }
  }
 
+if (params.samplesheet){
+  original_samplesheet_ch = Channel
+      .fromPath(params.samplesheet)
+      .ifEmpty{ exit 1, "Cannot find samplesheet file: ${params.samplesheet}" }
+
+}
 
  /*
   * PREPROCESSING - Remove DOS line endings
@@ -128,14 +134,14 @@ if (!params.excel){
      publishDir "${params.outdir}/samplesheet", mode: 'copy'
 
      input:
-     set samplesheet from params.samplesheet
+     set samplesheet from original_samplesheet_ch
 
      output:
      file "samplesheet_cleaned.csv" into samplesheet_cleaned
 
      script:
      """
-     dos2unix ${samplesheet} > samplesheet_cleaned.csv
+     dos2unix --newfile ${samplesheet} samplesheet_cleaned.csv
      """
   }
 } else {
@@ -144,7 +150,7 @@ if (!params.excel){
      publishDir "${params.outdir}/samplesheet", mode: 'copy'
 
      input:
-     set samplesheet from params.samplesheet
+     set samplesheet from original_samplesheet_ch
 
      output:
      file "samplesheet_cleaned.csv" into samplesheet_cleaned
