@@ -31,6 +31,7 @@ def helpMessage() {
       --singleEnd                   Specifies that the input is single end reads
       --hdr                         Specifies that the input sample sheet contains expected_hdr_amplicon_seq header
       --adapters                    Path to fasta file of adapter sequences
+      --excel                       Specifies that input sample sheet is an .xslx rather than CSV file
 
     QC:
       --skipQC                      Skip all QC steps apart from MultiQC
@@ -118,15 +119,57 @@ if( workflow.profile == 'awsbatch') {
  }
 
 
+ /*
+  * PREPROCESSING - Remove DOS line endings
+  */
+if (!params.excel){
+  process clean_samplesheet {
+     tag "$name"
+     publishDir "${params.outdir}/samplesheet", mode: 'copy'
+
+     input:
+     set samplesheet from params.samplesheet
+
+     output:
+     file "samplesheet_cleaned.csv" into samplesheet_cleaned
+
+     script:
+     """
+     tr -d '\r' $samplesheet > samplesheet_cleaned.csv
+     """
+  }
+} else {
+  process excel_to_csv {
+     tag "$name"
+     publishDir "${params.outdir}/samplesheet", mode: 'copy'
+
+     when:
+     set samplesheet from params.samplesheet
+
+     input:
+     set val(name), file(reads) from raw_reads_fastqc
+
+     output:
+     file "samplesheet_cleaned.csv" into samplesheet_cleaned
+
+     script:
+     """
+     csvtk xlsx2csv ${samplesheet} > samplesheet_cleaned.csv
+     """
+  }
+}
+
+
+
 if (params.hdr){
   samplesheet_ch = Channel
-    .fromPath(params.samplesheet)
+    .fromPath(samplesheet_cleaned)
     .splitCsv(header:true)
     .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.expected_hdr_amplicon_seq, row.guide_seq))}
     .ifEmpty { exit 1, "Cannot parse input csv ${params.samplesheet}" }
 } else {
   samplesheet_ch = Channel
-    .fromPath(params.samplesheet)
+    .fromPath(samplesheet_cleaned)
     .splitCsv(header:true)
     .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.guide_seq))}
     .ifEmpty { exit 1, "Cannot parse input csv ${params.samplesheet}" }
