@@ -154,7 +154,7 @@ if (!params.excel){
      set samplesheet from original_samplesheet_ch
 
      output:
-     file "samplesheet_cleaned.csv" into samplesheet_cleaned
+     file "samplesheet_cleaned.csv" into samplesheet_cleaned, samplesheet_to_print
 
      script:
      """
@@ -163,7 +163,7 @@ if (!params.excel){
   }
 }
 
-
+samplesheet_to_print.subscribe{ println it}
 
 if (params.hdr){
   samplesheet_ch = samplesheet_cleaned
