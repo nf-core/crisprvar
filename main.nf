@@ -179,14 +179,14 @@ if (params.hdr){
     .splitCsv(header:true)
     .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.expected_hdr_amplicon_seq, row.guide_seq))}
     .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
-    .into{ samplesheet_ch, samplesheet_to_print }
+    .into{ samplesheet_ch; samplesheet_to_print }
 } else {
   samplesheet_cleaned
     .collect()
     .splitCsv(header:true)
     .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.guide_seq))}
     .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
-    .into{ samplesheet_ch, samplesheet_to_print }
+    .into{ samplesheet_ch; samplesheet_to_print }
 }
 
 Channel.fromPath("$baseDir/assets/where_are_my_files.txt", checkIfExists: true)
