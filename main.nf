@@ -138,7 +138,7 @@ if (!params.excel){
      file samplesheet from original_samplesheet_ch
 
      output:
-     file "samplesheet_cleaned.csv" into samplesheet_cleaned
+     file "samplesheet_cleaned.csv" into samplesheet_cleaned, samplesheet_to_print
 
      script:
      """
