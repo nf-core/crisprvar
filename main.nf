@@ -348,11 +348,6 @@ process trim_galore {
     }
 }
 
-println "samplesheet_to_print"
-samplesheet_to_print.subscribe{ println it }
-
-println "trimmed_reads_print"
-trimmed_reads_print.subscribe{ println it }
 // Look up the guide RNA and amplicon sequence for each sample
 crispresso_input = samplesheet_ch.join(trimmed_reads_crispresso)
 
