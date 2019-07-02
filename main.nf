@@ -122,7 +122,8 @@ if (params.samplesheet){
   original_samplesheet_ch = Channel
       .fromPath(params.samplesheet)
       .ifEmpty{ exit 1, "Cannot find samplesheet file: ${params.samplesheet}" }
-
+} else {
+  exit 1, "Must provide a samplesheet csv or Excel file"
 }
 
  /*
@@ -168,12 +169,12 @@ if (params.hdr){
   samplesheet_ch = samplesheet_cleaned
     .splitCsv(header:true)
     .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.expected_hdr_amplicon_seq, row.guide_seq))}
-    .ifEmpty { exit 1, "Cannot parse input csv ${params.samplesheet}" }
+    .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
 } else {
   samplesheet_ch = samplesheet_cleaned
     .splitCsv(header:true)
     .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.guide_seq))}
-    .ifEmpty { exit 1, "Cannot parse input csv ${params.samplesheet}" }
+    .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
 }
 
 Channel.fromPath("$baseDir/assets/where_are_my_files.txt", checkIfExists: true)
