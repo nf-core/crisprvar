@@ -135,7 +135,7 @@ if (!params.excel){
      publishDir "${params.outdir}/samplesheet", mode: 'copy'
 
      input:
-     set samplesheet from original_samplesheet_ch
+     file samplesheet from original_samplesheet_ch
 
      output:
      file "samplesheet_cleaned.csv" into samplesheet_cleaned
@@ -151,7 +151,7 @@ if (!params.excel){
      publishDir "${params.outdir}/samplesheet", mode: 'copy'
 
      input:
-     set samplesheet from original_samplesheet_ch
+     file samplesheet from original_samplesheet_ch
 
      output:
      file "samplesheet_cleaned.csv" into samplesheet_cleaned, samplesheet_to_print
