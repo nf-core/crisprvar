@@ -33,6 +33,15 @@ def helpMessage() {
       --adapters                    Path to fasta file of adapter sequences
       --excel                       Specifies that input sample sheet is an .xslx rather than CSV file
 
+    Trimming:
+      --clip_r1 [int]               Instructs Trim Galore to remove bp from the 5' end of read 1 (or single-end reads)
+      --clip_r2 [int]               Instructs Trim Galore to remove bp from the 5' end of read 2 (paired-end reads only)
+      --three_prime_clip_r1 [int]   Instructs Trim Galore to remove bp from the 3' end of read 1 AFTER adapter/quality trimming has been performed
+      --three_prime_clip_r2 [int]   Instructs Trim Galore to remove bp from the 3' end of read 2 AFTER adapter/quality trimming has been performed
+      --trim_nextseq [int]          Instructs Trim Galore to apply the --nextseq=X option, to trim based on quality after removing poly-G tails
+      --pico                        Sets trimming and standedness settings for the SMARTer Stranded Total RNA-Seq Kit - Pico Input kit. Equivalent to: --forwardStranded --clip_r1 3 --three_prime_clip_r2 3
+      --saveTrimmed                 Save trimmed FastQ file intermediates
+
     QC:
       --skipQC                      Skip all QC steps apart from MultiQC
       --skipFastQC                  Skip FastQC
