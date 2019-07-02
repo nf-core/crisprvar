@@ -172,22 +172,21 @@ if (!params.excel){
   }
 }
 
-samplesheet_to_print
-  .collect()
-  .subscribe{ println it}
 
 if (params.hdr){
-  samplesheet_ch = samplesheet_cleaned
+  samplesheet_cleaned
     .collect()
     .splitCsv(header:true)
     .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.expected_hdr_amplicon_seq, row.guide_seq))}
     .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
+    .set{ samplesheet_ch, samplesheet_to_print }
 } else {
-  samplesheet_ch = samplesheet_cleaned
+  samplesheet_cleaned
     .collect()
     .splitCsv(header:true)
     .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.guide_seq))}
     .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
+    .set{ samplesheet_ch, samplesheet_to_print }
 }
 
 Channel.fromPath("$baseDir/assets/where_are_my_files.txt", checkIfExists: true)
@@ -326,7 +325,7 @@ process trim_galore {
     file wherearemyfiles from ch_where_trim_galore.collect()
 
     output:
-    set val(name), file("*fq.gz") into trimmed_reads_crispresso
+    set val(name), file("*fq.gz") into trimmed_reads_crispresso, trimmed_reads_print
     file "*trimming_report.txt" into trimgalore_results
     file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
     file "where_are_my_files.txt"
@@ -349,8 +348,11 @@ process trim_galore {
     }
 }
 
+println "samplesheet_to_print"
+samplesheet_to_print.subscribe{ println it }
 
-
+println "trimmed_reads_print"
+trimmed_reads_print.subscribe{ println it }
 // Look up the guide RNA and amplicon sequence for each sample
 crispresso_input = samplesheet_ch.join(trimmed_reads_crispresso)
 
