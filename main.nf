@@ -163,15 +163,19 @@ if (!params.excel){
   }
 }
 
-samplesheet_to_print.subscribe{ println it}
+samplesheet_to_print
+  .collect()
+  .subscribe{ println it}
 
 if (params.hdr){
   samplesheet_ch = samplesheet_cleaned
+    .collect()
     .splitCsv(header:true)
     .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.expected_hdr_amplicon_seq, row.guide_seq))}
     .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
 } else {
   samplesheet_ch = samplesheet_cleaned
+    .collect()
     .splitCsv(header:true)
     .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.guide_seq))}
     .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
