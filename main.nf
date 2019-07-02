@@ -177,14 +177,14 @@ if (params.hdr){
   samplesheet_cleaned
     .collect()
     .splitCsv(header:true)
-    .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.expected_hdr_amplicon_seq, row.guide_seq))}
+    .map{ row -> tuple(row.sample_id[0], tuple(row.amplicon_seq[0], row.expected_hdr_amplicon_seq[0], row.guide_seq[0]))}
     .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
     .into{ samplesheet_ch; samplesheet_to_print }
 } else {
   samplesheet_cleaned
     .collect()
     .splitCsv(header:true)
-    .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.guide_seq))}
+    .map{ row -> tuple(row.sample_id[0], tuple(row.amplicon_seq[0], row.guide_seq[0]))}
     .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
     .into{ samplesheet_ch; samplesheet_to_print }
 }
