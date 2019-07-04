@@ -26,10 +26,13 @@ def helpMessage() {
       --samplesheet                 Comma-separated variable file containing a sample id, amplicon sequence, and guide sequence in each row
       -profile                      Configuration profile to use. Can use multiple (comma separated)
                                     Available: standard, conda, docker, singularity, awsbatch, test
+      --nhej                        Specifies that the experiment is an HDR experiment and the input sample sheet
+                                    contains the columns `sample_id,amplicon_seq,guide_seq`
+      --hdr                         Specifies that the experiment is an HDR experiment and the input sample sheet
+                                    contains all columns above and `expected_hdr_amplicon_seq header`
 
     Options:
       --singleEnd                   Specifies that the input is single end reads
-      --hdr                         Specifies that the input sample sheet contains expected_hdr_amplicon_seq header
       --adapters                    Path to fasta file of adapter sequences
       --excel                       Specifies that input sample sheet is an .xslx rather than CSV file
 
@@ -101,6 +104,10 @@ if( !(workflow.runName ==~ /[a-z]+_[a-z]+/) ){
 // related: https://github.com/nextflow-io/nextflow/issues/813
 if( workflow.profile == 'awsbatch') {
     if(!workflow.workDir.startsWith('s3:') || !params.outdir.startsWith('s3:')) exit 1, "Workdir or Outdir not on S3 - specify S3 Buckets for each to run on AWSBatch!"
+}
+
+if (!params.nhej && !params.hdr){
+  exit 1, "Either one of --hdr or --nhej must be specified!"
 }
 
 /*
