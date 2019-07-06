@@ -138,12 +138,17 @@ if (!params.nhej && !params.hdr){
  }
 
 if (params.samplesheet){
-  original_samplesheet_ch = Channel
+  Channel
       .fromPath(params.samplesheet)
       .ifEmpty{ exit 1, "Cannot find samplesheet file: ${params.samplesheet}" }
+      .dump()
+      .into { original_samplesheet_ch; original_samplesheet_to_print_ch }
 } else {
   exit 1, "Must provide a samplesheet csv or Excel file"
 }
+
+println "original_samplesheet_to_print_ch: ${original_samplesheet_to_print_ch.collect()}"
+
 
  /*
   * PREPROCESSING - Remove DOS line endings
@@ -154,14 +159,14 @@ if (!params.excel){
      publishDir "${params.outdir}/samplesheet", mode: 'copy'
 
      input:
-     file samplesheet from original_samplesheet_ch
+     file samplesheet from original_samplesheet_ch.collect()
 
      output:
      file "samplesheet_cleaned.csv" into samplesheet_cleaned, samplesheet_to_print
 
      script:
      """
-     dos2unix --newfile ${samplesheet} samplesheet_cleaned.csv
+     tr -d '\r' < ${samplesheet} > samplesheet_cleaned.csv
      """
   }
 } else {
@@ -170,7 +175,7 @@ if (!params.excel){
      publishDir "${params.outdir}/samplesheet", mode: 'copy'
 
      input:
-     file samplesheet from original_samplesheet_ch
+     file samplesheet from original_samplesheet_ch.collect()
 
      output:
      file "samplesheet_cleaned.csv" into samplesheet_cleaned, samplesheet_to_print
@@ -182,26 +187,37 @@ if (!params.excel){
   }
 }
 
+samplesheet_to_print
+  .collect()
+  .ifEmpty{ exit 1, "Samplesheet cleaning failed!" }
+  .subscribe{ print it }
+
 
 if (params.hdr){
   samplesheet_cleaned
+    .dump()
     .collect()
+    .dump()
     .splitCsv(header:true)
-    .map{ row -> tuple(row.sample_id[0], tuple(row.amplicon_seq[0], row.expected_hdr_amplicon_seq[0], row.guide_seq[0]))}
+    .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.expected_hdr_amplicon_seq, row.guide_seq))}
     .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
-    .view{}
     .into{ samplesheet_ch; samplesheet_to_print }
 } else {
   samplesheet_cleaned
+    .dump()
     .collect()
+    .dump()
     .splitCsv(header:true)
-    .map{ row -> tuple(row.sample_id[0], tuple(row.amplicon_seq[0], row.guide_seq[0]))}
+    .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.guide_seq))}
     .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
-    .view{}
     .into{ samplesheet_ch; samplesheet_to_print }
 }
 
-samplesheet_to_print.subscribe{ print it }
+samplesheet_to_print
+  .collect()
+  .ifEmpty{ exit 1, "after splitCsv -- Samplesheet cleaning failed!" }
+  .subscribe{ print it }
+
 
 // Look up the guide RNA and amplicon sequence for each sample
 samplesheet_ch
