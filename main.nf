@@ -106,6 +106,8 @@ if( workflow.profile == 'awsbatch') {
     if(!workflow.workDir.startsWith('s3:') || !params.outdir.startsWith('s3:')) exit 1, "Workdir or Outdir not on S3 - specify S3 Buckets for each to run on AWSBatch!"
 }
 
+trim_pattern = params.trim_pattern ? ~params.trim_pattern : null
+
 if (!params.nhej && !params.hdr){
   exit 1, "Either one of --hdr or --nhej must be specified!"
 }
@@ -131,6 +133,7 @@ if (!params.nhej && !params.hdr){
      Channel
          .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
          .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nNB: Path requires at least one * wildcard!\nIf this is single-end data, please specify --singleEnd on the command line." }
+         .map{ name, reads -> trim_pattern ? tuple(name.replaceAll(trim_pattern, '') : name, reads) }
          .into { raw_reads; raw_reads_to_print }
  }
 
