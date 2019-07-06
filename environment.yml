@@ -10,3 +10,7 @@ dependencies:
   - fastqc=0.11.8
   - trim-galore=0.6.2
   - csvtk=0.17.0
+  - flash=1.2.11
+  - adapterremoval=2.3.1
+  - fastp=0.20.0
+  - trimmomatic=0.39
