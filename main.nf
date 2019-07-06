@@ -119,19 +119,19 @@ if (!params.nhej && !params.hdr){
              .from(params.readPaths)
              .map { row -> [ row[0], [file(row[1][0])]] }
              .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-             .into { raw_reads_fastqc; raw_reads_trimgalore }
+             .into { raw_reads; raw_reads_to_print }
      } else {
          Channel
              .from(params.readPaths)
              .map { row -> [ row[0], [file(row[1][0]), file(row[1][1])]] }
              .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-             .into { raw_reads_fastqc; raw_reads_trimgalore }
+             .into { raw_reads; raw_reads_to_print }
      }
  } else {
      Channel
          .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
          .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nNB: Path requires at least one * wildcard!\nIf this is single-end data, please specify --singleEnd on the command line." }
-         .into { raw_reads_fastqc; raw_reads_trimgalore }
+         .into { raw_reads; raw_reads_to_print }
  }
 
 if (params.samplesheet){
@@ -142,59 +142,6 @@ if (params.samplesheet){
   exit 1, "Must provide a samplesheet csv or Excel file"
 }
 
- /*
-  * PREPROCESSING - Remove DOS line endings
-  */
-if (!params.excel){
-  process clean_samplesheet {
-     tag "$name"
-     publishDir "${params.outdir}/samplesheet", mode: 'copy'
-
-     input:
-     file samplesheet from original_samplesheet_ch
-
-     output:
-     file "samplesheet_cleaned.csv" into samplesheet_cleaned, samplesheet_to_print
-
-     script:
-     """
-     dos2unix --newfile ${samplesheet} samplesheet_cleaned.csv
-     """
-  }
-} else {
-  process excel_to_csv {
-     tag "$name"
-     publishDir "${params.outdir}/samplesheet", mode: 'copy'
-
-     input:
-     file samplesheet from original_samplesheet_ch
-
-     output:
-     file "samplesheet_cleaned.csv" into samplesheet_cleaned, samplesheet_to_print
-
-     script:
-     """
-     csvtk xlsx2csv ${samplesheet} > samplesheet_cleaned.csv
-     """
-  }
-}
-
-
-if (params.hdr){
-  samplesheet_cleaned
-    .collect()
-    .splitCsv(header:true)
-    .map{ row -> tuple(row.sample_id[0], tuple(row.amplicon_seq[0], row.expected_hdr_amplicon_seq[0], row.guide_seq[0]))}
-    .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
-    .into{ samplesheet_ch; samplesheet_to_print }
-} else {
-  samplesheet_cleaned
-    .collect()
-    .splitCsv(header:true)
-    .map{ row -> tuple(row.sample_id[0], tuple(row.amplicon_seq[0], row.guide_seq[0]))}
-    .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
-    .into{ samplesheet_ch; samplesheet_to_print }
-}
 
 Channel.fromPath("$baseDir/assets/where_are_my_files.txt", checkIfExists: true)
        .into{ch_where_trim_galore; ch_where_star; ch_where_hisat2; ch_where_hisat2_sort}
@@ -224,7 +171,9 @@ summary['Pipeline Name']  = 'nf-core/crisprvar'
 summary['Pipeline Version'] = workflow.manifest.version
 summary['Run Name']     = custom_runName ?: workflow.runName
 summary['Reads']        = params.reads
-summary['Fasta Ref']    = params.fasta
+summary['Samplesheet']     = params.samplesheet
+summary['Excel?']          = params.excel
+summary["Experiment type"] = params.hdr ? "Homology directed repair (HDR)" : "Non-homologous end joining (NHEJ)"
 summary['Data Type']    = params.singleEnd ? 'Single-End' : 'Paired-End'
 summary['Max Memory']   = params.max_memory
 summary['Max CPUs']     = params.max_cpus
@@ -245,7 +194,7 @@ if(workflow.profile == 'awsbatch'){
    summary['AWS Queue'] = params.awsqueue
 }
 if(params.email) summary['E-mail Address'] = params.email
-log.info summary.collect { k,v -> "${k.padRight(15)}: $v" }.join("\n")
+log.info summary.collect { k,v -> "${k.padRight(20)}: $v" }.join("\n")
 log.info "========================================="
 
 
@@ -267,6 +216,59 @@ ${summary.collect { k,v -> "            <dt>$k</dt><dd><samp>${v ?: '<span style
    return yaml_file
 }
 
+/*
+ * PREPROCESSING - Remove DOS line endings
+ */
+
+ process clean_samplesheet {
+    tag "$name"
+    publishDir "${params.outdir}/samplesheet", mode: 'copy'
+
+    input:
+    file samplesheet from original_samplesheet_ch
+
+    output:
+    file "samplesheet_cleaned.csv" into samplesheet_cleaned, samplesheet_to_print
+
+    script:
+    if (params.excel){
+      """
+      csvtk xlsx2csv ${samplesheet} > samplesheet_cleaned.csv
+      """
+    } else {
+      """
+      dos2unix --newfile ${samplesheet} samplesheet_cleaned.csv
+      """
+    }
+ }
+
+
+if (params.hdr){
+ samplesheet_cleaned
+   .collect()
+   .splitCsv(header:true)
+   .map{ row -> tuple(row.sample_id[0], tuple(row.amplicon_seq[0], row.expected_hdr_amplicon_seq[0], row.guide_seq[0]))}
+   .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
+   // .subscribe{ println it }
+   .into{ samplesheet_ch; samplesheet_to_print }
+} else {
+ samplesheet_cleaned
+   .collect()
+   .splitCsv(header:true)
+   .map{ row -> tuple(row.sample_id[0], tuple(row.amplicon_seq[0], row.guide_seq[0]))}
+   .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
+   // .subscribe{ println it }
+   .into{ samplesheet_ch; samplesheet_to_print }
+}
+
+
+// // Look up the guide RNA and amplicon sequence for each sample
+samplesheet_ch
+  .join( raw_reads )
+  .ifEmpty{ exit 1, "No samples found matching samplesheet sample_id column" }
+  .into{ raw_reads_fastqc; raw_reads_trimgalore }
+
+
 
 /*
  * Parse software version numbers
@@ -287,6 +289,8 @@ process get_software_versions {
 }
 
 
+
+
 /*
  * STEP 1 - FastQC
  */
@@ -299,7 +303,7 @@ process fastqc {
     !params.skipQC && !params.skipFastQC
 
     input:
-    set val(name), file(reads) from raw_reads_fastqc
+    set val(name), val(experiment_info), file(reads) from raw_reads_fastqc
 
     output:
     file "*_fastqc.{zip,html}" into fastqc_results
@@ -328,11 +332,11 @@ process trim_galore {
         }
 
     input:
-    set val(name), file(reads) from raw_reads_trimgalore
+    set val(name), val(experiment_info), file(reads) from raw_reads_trimgalore
     file wherearemyfiles from ch_where_trim_galore.collect()
 
     output:
-    set val(name), file("*fq.gz") into trimmed_reads_crispresso, trimmed_reads_print
+    set val(name), val(experiment_info), file("*fq.gz") into trimmed_reads_crispresso, trimmed_reads_print
     file "*trimming_report.txt" into trimgalore_results
     file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
     file "where_are_my_files.txt"
@@ -355,19 +359,15 @@ process trim_galore {
     }
 }
 
-// Look up the guide RNA and amplicon sequence for each sample
-crispresso_input = samplesheet_ch.join(trimmed_reads_crispresso)
 
 /*
  * STEP 2 - CRISPResso
  */
 process crispresso {
     tag "$name"
-    publishDir "${params.outdir}/cripresso", mode: 'copy',
-        saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
-
+    publishDir "${params.outdir}/cripresso", mode: 'copy'
     input:
-    set val(name), val(experiment_info), file(reads) from crispresso_input
+    set val(name), val(experiment_info), file(reads) from trimmed_reads_crispresso
 
     output:
     file "${name}"
