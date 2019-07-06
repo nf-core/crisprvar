@@ -121,20 +121,22 @@ if (!params.nhej && !params.hdr){
              .from(params.readPaths)
              .map { row -> [ row[0], [file(row[1][0])]] }
              .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-             .into { raw_reads; raw_reads_to_print }
+             .map{ name, reads -> tuple(trim_pattern ? name.replaceAll(trim_pattern, '') : name, reads) }
+             .into { raw_reads_to_join; raw_reads_to_print }
      } else {
          Channel
              .from(params.readPaths)
              .map { row -> [ row[0], [file(row[1][0]), file(row[1][1])]] }
              .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-             .into { raw_reads; raw_reads_to_print }
+             .map{ name, reads -> tuple(trim_pattern ? name.replaceAll(trim_pattern, '') : name, reads) }
+             .into { raw_reads_to_join; raw_reads_to_print }
      }
  } else {
      Channel
          .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
          .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nNB: Path requires at least one * wildcard!\nIf this is single-end data, please specify --singleEnd on the command line." }
-         .map{ name, reads -> trim_pattern ? tuple(name.replaceAll(trim_pattern, '') : name, reads) }
-         .into { raw_reads; raw_reads_to_print }
+         .map{ name, reads -> tuple(trim_pattern ? name.replaceAll(trim_pattern, '') : name, reads) }
+         .into { raw_reads_to_join; raw_reads_to_print }
  }
 
 if (params.samplesheet){
@@ -147,8 +149,10 @@ if (params.samplesheet){
   exit 1, "Must provide a samplesheet csv or Excel file"
 }
 
-println "original_samplesheet_to_print_ch: ${original_samplesheet_to_print_ch.collect()}"
+println "original_samplesheet_to_print_ch: ${original_samplesheet_to_print_ch.println()}"
 
+println "raw_reads_to_print.subscribe{ println it }:"
+raw_reads_to_print.subscribe{ println it }
 
  /*
   * PREPROCESSING - Remove DOS line endings
@@ -189,27 +193,24 @@ if (!params.excel){
 
 samplesheet_to_print
   .collect()
-  .ifEmpty{ exit 1, "Samplesheet cleaning failed!" }
+  .splitCsv(header: true)
+  // .ifEmpty{ exit 1, "Samplesheet cleaning failed!" }
   .subscribe{ print it }
 
 
 if (params.hdr){
   samplesheet_cleaned
-    .dump()
     .collect()
-    .dump()
     .splitCsv(header:true)
     .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.expected_hdr_amplicon_seq, row.guide_seq))}
-    .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
+    .ifEmpty { exit 1, "Cannot parse cleaned input samplesheet ${params.samplesheet}" }
     .into{ samplesheet_ch; samplesheet_to_print }
 } else {
   samplesheet_cleaned
-    .dump()
     .collect()
-    .dump()
     .splitCsv(header:true)
     .map{ row -> tuple(row.sample_id, tuple(row.amplicon_seq, row.guide_seq))}
-    .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
+    .ifEmpty { exit 1, "Cannot parse cleaned input samplesheet ${params.samplesheet}" }
     .into{ samplesheet_ch; samplesheet_to_print }
 }
 
