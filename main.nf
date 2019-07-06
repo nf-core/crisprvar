@@ -385,7 +385,7 @@ process trim_galore {
     file wherearemyfiles from ch_where_trim_galore.collect()
 
     output:
-    set val(name), val(experiment_info), file("*fq.gz") into trimmed_reads_crispresso, trimmed_reads_print
+    set val(name), val(experiment_info), file("*fq.gz") into trimmed_reads_flash, trimmed_reads_print
     file "*trimming_report.txt" into trimgalore_results
     file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
     file "where_are_my_files.txt"
@@ -406,6 +406,46 @@ process trim_galore {
         trim_galore --paired --fastqc --gzip $c_r1 $c_r2 $tpc_r1 $tpc_r2 $nextseq $reads
         """
     }
+}
+
+process flash {
+  label 'low_memory'
+  tag "$name"
+  publishDir "${params.outdir}/flash", mode: 'copy',
+      saveAs: {filename ->
+          if (filename.indexOf("_fastqc") > 0) "FastQC/$filename"
+          else if (filename.indexOf("trimming_report.txt") > 0) "logs/$filename"
+          else if (!params.saveTrimmed && filename == "where_are_my_files.txt") filename
+          else if (params.saveTrimmed && filename != "where_are_my_files.txt") filename
+          else null
+      }
+
+  input:
+  set val(name), val(experiment_info), file(reads) from raw_reads_trimgalore
+  file wherearemyfiles from ch_where_trim_galore.collect()
+
+  output:
+  set val(name), val(experiment_info), file("*fq.gz") into trimmed_reads_flash, trimmed_reads_print
+  file "*trimming_report.txt" into trimgalore_results
+  file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
+  file "where_are_my_files.txt"
+
+
+  script:
+  c_r1 = clip_r1 > 0 ? "--clip_r1 ${clip_r1}" : ''
+  c_r2 = clip_r2 > 0 ? "--clip_r2 ${clip_r2}" : ''
+  tpc_r1 = three_prime_clip_r1 > 0 ? "--three_prime_clip_r1 ${three_prime_clip_r1}" : ''
+  tpc_r2 = three_prime_clip_r2 > 0 ? "--three_prime_clip_r2 ${three_prime_clip_r2}" : ''
+  nextseq = params.trim_nextseq > 0 ? "--nextseq ${params.trim_nextseq}" : ''
+  if (params.singleEnd) {
+      """
+      trim_galore --fastqc --gzip $c_r1 $tpc_r1 $nextseq $reads
+      """
+  } else {
+      """
+      trim_galore --paired --fastqc --gzip $c_r1 $c_r2 $tpc_r1 $tpc_r2 $nextseq $reads
+      """
+  }
 }
 
 /*
