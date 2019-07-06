@@ -145,6 +145,69 @@ if (params.samplesheet){
   exit 1, "Must provide a samplesheet csv or Excel file"
 }
 
+ /*
+  * PREPROCESSING - Remove DOS line endings
+  */
+if (!params.excel){
+  process clean_samplesheet {
+     tag "$name"
+     publishDir "${params.outdir}/samplesheet", mode: 'copy'
+
+     input:
+     file samplesheet from original_samplesheet_ch
+
+     output:
+     file "samplesheet_cleaned.csv" into samplesheet_cleaned, samplesheet_to_print
+
+     script:
+     """
+     dos2unix --newfile ${samplesheet} samplesheet_cleaned.csv
+     """
+  }
+} else {
+  process excel_to_csv {
+     tag "$name"
+     publishDir "${params.outdir}/samplesheet", mode: 'copy'
+
+     input:
+     file samplesheet from original_samplesheet_ch
+
+     output:
+     file "samplesheet_cleaned.csv" into samplesheet_cleaned, samplesheet_to_print
+
+     script:
+     """
+     csvtk xlsx2csv ${samplesheet} > samplesheet_cleaned.csv
+     """
+  }
+}
+
+
+if (params.hdr){
+  samplesheet_cleaned
+    .collect()
+    .splitCsv(header:true)
+    .map{ row -> tuple(row.sample_id[0], tuple(row.amplicon_seq[0], row.expected_hdr_amplicon_seq[0], row.guide_seq[0]))}
+    .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
+    .view{}
+    .into{ samplesheet_ch; samplesheet_to_print }
+} else {
+  samplesheet_cleaned
+    .collect()
+    .splitCsv(header:true)
+    .map{ row -> tuple(row.sample_id[0], tuple(row.amplicon_seq[0], row.guide_seq[0]))}
+    .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
+    .view{}
+    .into{ samplesheet_ch; samplesheet_to_print }
+}
+
+samplesheet_to_print.subscribe{ print it }
+
+// Look up the guide RNA and amplicon sequence for each sample
+samplesheet_ch
+    .join( raw_reads_to_join )
+    .ifEmpty{ exit 1, "No sample IDs found matching from the samplesheet to the reads!"}
+    .into{ raw_reads_trimgalore; raw_reads_fastqc}
 
 Channel.fromPath("$baseDir/assets/where_are_my_files.txt", checkIfExists: true)
        .into{ch_where_trim_galore; ch_where_star; ch_where_hisat2; ch_where_hisat2_sort}
@@ -319,6 +382,10 @@ process fastqc {
 
 
 
+
+
+
+
 /*
  * STEP 2 - Trim Galore!
  */
@@ -361,7 +428,6 @@ process trim_galore {
         """
     }
 }
-
 
 /*
  * STEP 2 - CRISPResso
