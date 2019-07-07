@@ -6,9 +6,9 @@ test:
 		--adapters test-data/TruSeq3-PE-2.fa.txt
 
 docker_build:
-	docker build -t czbiohub/crisprvar:dev .
+	docker build -t czbiohub/crisprvar .
 
 docker_push:
 	sudo docker login
-	sudo docker push czbiohub/crisprvar:dev
+	sudo docker push czbiohub/crisprvar
 	docker images
