@@ -142,6 +142,12 @@ if (params.samplesheet){
   exit 1, "Must provide a samplesheet csv or Excel file"
 }
 
+if (params.adapters){
+  adapters_ch = Channel
+      .fromPath(params.adapters)
+      .ifEmpty{ exit 1, "Cannot find Adapters file: ${params.adapters}" }
+}
+
 
 Channel.fromPath("$baseDir/assets/where_are_my_files.txt", checkIfExists: true)
        .into{ch_where_trim_galore; ch_where_star; ch_where_hisat2; ch_where_hisat2_sort}
@@ -266,7 +272,7 @@ if (params.hdr){
 samplesheet_ch
   .join( raw_reads )
   .ifEmpty{ exit 1, "No samples found matching samplesheet sample_id column" }
-  .into{ raw_reads_fastqc; raw_reads_trimgalore }
+  .into{ raw_reads_fastqc; raw_reads_trimmomatic }
 
 
 
@@ -317,9 +323,9 @@ process fastqc {
 
 
 /*
- * STEP 2 - Trim Galore!
+ * STEP 2 - Trimmomatic
  */
-process trim_galore {
+process trimmomatic{
     label 'low_memory'
     tag "$name"
     publishDir "${params.outdir}/trim_galore", mode: 'copy',
@@ -332,12 +338,13 @@ process trim_galore {
         }
 
     input:
-    set val(name), val(experiment_info), file(reads) from raw_reads_trimgalore
+    set val(name), val(experiment_info), file(reads) from raw_reads_trimmomatic
+    file adapters from adapters_ch
     file wherearemyfiles from ch_where_trim_galore.collect()
 
     output:
     set val(name), val(experiment_info), file("*fq.gz") into trimmed_reads_crispresso, trimmed_reads_print
-    file "*trimming_report.txt" into trimgalore_results
+    file "*_trimmomatic.log" into trimgalore_results
     file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
     file "where_are_my_files.txt"
 
@@ -348,13 +355,29 @@ process trim_galore {
     tpc_r1 = three_prime_clip_r1 > 0 ? "--three_prime_clip_r1 ${three_prime_clip_r1}" : ''
     tpc_r2 = three_prime_clip_r2 > 0 ? "--three_prime_clip_r2 ${three_prime_clip_r2}" : ''
     nextseq = params.trim_nextseq > 0 ? "--nextseq ${params.trim_nextseq}" : ''
+    // "ILLUMINACLIP:{adapters}:3:30:1:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36"
+    illuminaclip = "ILLUMINACLIP:${adapters.baseName}:${params.seed_mismatches}:${params.palindrom_clip_threshold}:1:1:true"
+    trimmomatic_options_str = "${illuminaclip} LEADING:${clip_r1} TRAILING:${three_prime_clip_r1} SLIDINGWINDOW:4:15 MINLEN:36"
+    r1_paired = "${name}_R1_paired.fq.gz"
+    r1_unpaired = "${name}_R1_unpaired.fq.gz"
+    r2_paired = "${name}_R2_paired.fq.gz"
+    r2_unpaired = "${name}_R2_unpaired.fq.gz"
     if (params.singleEnd) {
         """
-        trim_galore --fastqc --gzip $c_r1 $tpc_r1 $nextseq $reads
+        trimmomatic \\
+            -phred33 $reads \\
+            ${r1_paired} ${r1_unpaired} \\
+            $trimmomatic_options_str
         """
     } else {
         """
-        trim_galore --paired --fastqc --gzip $c_r1 $c_r2 $tpc_r1 $tpc_r2 $nextseq $reads
+        trimmomatic \\
+            -phred33 $reads \\
+            ${r1_paired} ${r1_unpaired} \\
+            ${r2_paired} ${r2_unpaired} \\
+            $trimmomatic_options_str \\
+            2&>1 \\
+            | tee > ${name}_trimmomatic.log
         """
     }
 }
