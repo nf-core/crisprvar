@@ -325,6 +325,10 @@ process fastqc {
 
 
 
+
+
+
+
 /*
  * STEP 2 - Trimmomatic
  */
@@ -384,7 +388,6 @@ process trimmomatic{
         """
     }
 }
-
 
 /*
  * STEP 2 - CRISPResso
