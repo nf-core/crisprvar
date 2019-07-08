@@ -311,7 +311,7 @@ if (params.debug){
 samplesheet_ch
   .join( raw_reads_to_join )
   .ifEmpty{ exit 1, "No samples found matching samplesheet sample_id column" }
-  .into{ raw_reads_fastqc; raw_reads_trimmomatic; joined_reads_to_print }
+  .into{ joined_reads_fastqc; joined_reads_adapterremoval; joined_reads_to_print }
 
 
 if (params.debug){
@@ -353,7 +353,7 @@ process fastqc {
     !params.skipQC && !params.skipFastQC
 
     input:
-    set val(name), val(experiment_info), file(reads) from raw_reads_fastqc
+    set val(name), val(experiment_info), file(reads) from joined_reads_fastqc
 
     output:
     file "*_fastqc.{zip,html}" into fastqc_results
@@ -384,25 +384,23 @@ process adapaterremoval {
         }
 
     input:
-    set val(name), val(experiment_info), file(reads) from raw_reads_adapterremoval
+    set val(name), val(experiment_info), file(reads) from joined_reads_adapterremoval
     file wherearemyfiles from ch_where_adapterremoval.collect()
 
     output:
-    set val(name), val(experiment_info), file("*fq.gz") into trimmed_reads_crispresso, trimmed_reads_print
-    file "*trimming_report.txt" into trimgalore_results
-    file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
+    set val(name), val(experiment_info), file("*collapsed.gz") into trimmed_reads_crispresso, trimmed_reads_print
+    file "*settings" into adapterremoval_results
     file "where_are_my_files.txt"
 
 
     script:
-    c_r1 = clip_r1 > 0 ? "--clip_r1 ${clip_r1}" : ''
-    c_r2 = clip_r2 > 0 ? "--clip_r2 ${clip_r2}" : ''
-    tpc_r1 = three_prime_clip_r1 > 0 ? "--three_prime_clip_r1 ${three_prime_clip_r1}" : ''
-    tpc_r2 = three_prime_clip_r2 > 0 ? "--three_prime_clip_r2 ${three_prime_clip_r2}" : ''
-    nextseq = params.trim_nextseq > 0 ? "--nextseq ${params.trim_nextseq}" : ''
     if (params.singleEnd) {
         """
-        trim_galore --fastqc --gzip $c_r1 $tpc_r1 $nextseq $reads
+        AdapterRemoval \\
+            --file1 ${reads} \\
+            --trimns \\
+            --basename ${name} \\
+            --trimqualities
         """
     } else {
       // AdapterRemoval --file1 reads_1.fq --file2 reads_2.fq --basename output_paired --trimns --trimqualities --collapse
@@ -414,9 +412,15 @@ process adapaterremoval {
             --trimns \\
             --basename ${name} \\
             --trimqualities \\
+            --gzip \\
             --collapse
         """
     }
+}
+
+if (params.debug){
+  trimmed_reads_print
+    .subscribe{ println it }
 }
 
 /*
@@ -438,8 +442,7 @@ process crispresso {
       amplicon_hdr = experiment_info[1]
       guide = experiment_info[2]
       """
-      CRISPResso -r1 ${reads[0]} \\
-        -r2 ${reads[1]} \\
+      CRISPResso -r1 ${reads} \\
          --amplicon_seq $amplicon_wt \\
          --expected_hdr_amplicon_seq $amplicon_hdr \\
          --guide_seq $guide \\
@@ -449,8 +452,7 @@ process crispresso {
       amplicon = experiment_info[0]
       guide = experiment_info[1]
       """
-      CRISPResso -r1 ${reads[0]} \\
-        -r2 ${reads[1]} \\
+      CRISPResso -r1 ${reads} \\
          --amplicon_seq $amplicon \\
          --guide_seq $guide \\
          --output_folder ${name}
@@ -468,7 +470,7 @@ process multiqc {
     input:
     file multiqc_config
     file (fastqc:'fastqc/*') from fastqc_results.collect().ifEmpty([])
-    file ('trimgalore/*') from trimgalore_results.collect()
+    file ('adapterremoval/*') from adapterremoval_results.collect()
     file ('software_versions/*') from software_versions_yaml
     file workflow_summary from create_workflow_summary(summary)
 
