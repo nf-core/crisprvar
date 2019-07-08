@@ -45,6 +45,11 @@ def helpMessage() {
       --pico                        Sets trimming and standedness settings for the SMARTer Stranded Total RNA-Seq Kit - Pico Input kit. Equivalent to: --forwardStranded --clip_r1 3 --three_prime_clip_r2 3
       --saveTrimmed                 Save trimmed FastQ file intermediates
 
+    Merging:
+      --read_length
+      --fragment_length
+      --fragment_length_stddev
+
     QC:
       --skipQC                      Skip all QC steps apart from MultiQC
       --skipFastQC                  Skip FastQC
@@ -170,7 +175,7 @@ if (params.debug){
 
 
 Channel.fromPath("$baseDir/assets/where_are_my_files.txt", checkIfExists: true)
-       .into{ch_where_trim_galore; ch_where_star; ch_where_hisat2; ch_where_hisat2_sort}
+       .into{ch_where_trim_galore; ch_where_flash; ch_where_star; ch_where_hisat2; ch_where_hisat2_sort}
 
 // Define regular variables so that they can be overwritten
 clip_r1 = params.clip_r1
@@ -386,7 +391,6 @@ process trim_galore {
 
     output:
     set val(name), val(experiment_info), file("*fq.gz") into trimmed_reads_flash, trimmed_reads_print
-    file "*trimming_report.txt" into trimgalore_results
     file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
     file "where_are_my_files.txt"
 
@@ -408,45 +412,45 @@ process trim_galore {
     }
 }
 
-process flash {
-  label 'low_memory'
-  tag "$name"
-  publishDir "${params.outdir}/flash", mode: 'copy',
-      saveAs: {filename ->
-          if (filename.indexOf("_fastqc") > 0) "FastQC/$filename"
-          else if (filename.indexOf("trimming_report.txt") > 0) "logs/$filename"
-          else if (!params.saveTrimmed && filename == "where_are_my_files.txt") filename
-          else if (params.saveTrimmed && filename != "where_are_my_files.txt") filename
-          else null
-      }
+if (!params.singleEnd) {
+  process flash {
+    label 'low_memory'
+    tag "$name"
+    publishDir "${params.outdir}/flash", mode: 'copy',
+        saveAs: {filename ->
+            if (!params.saveMerged && filename == "where_are_my_files.txt") filename
+            else if (params.saveMerged && filename != "where_are_my_files.txt") filename
+            else null
+        }
 
-  input:
-  set val(name), val(experiment_info), file(reads) from raw_reads_trimgalore
-  file wherearemyfiles from ch_where_trim_galore.collect()
+    input:
+    set val(name), val(experiment_info), file(reads) from trimmed_reads_flash
+    file wherearemyfiles from ch_where_flash.collect()
 
-  output:
-  set val(name), val(experiment_info), file("*fq.gz") into trimmed_reads_flash, trimmed_reads_print
-  file "*trimming_report.txt" into trimgalore_results
-  file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
-  file "where_are_my_files.txt"
+    output:
+    set val(name), val(experiment_info), file("*extendedFrags.fastq.gz") into merged_reads_crispresso, merged_reads_print
+    file "where_are_my_files.txt"
 
-
-  script:
-  c_r1 = clip_r1 > 0 ? "--clip_r1 ${clip_r1}" : ''
-  c_r2 = clip_r2 > 0 ? "--clip_r2 ${clip_r2}" : ''
-  tpc_r1 = three_prime_clip_r1 > 0 ? "--three_prime_clip_r1 ${three_prime_clip_r1}" : ''
-  tpc_r2 = three_prime_clip_r2 > 0 ? "--three_prime_clip_r2 ${three_prime_clip_r2}" : ''
-  nextseq = params.trim_nextseq > 0 ? "--nextseq ${params.trim_nextseq}" : ''
-  if (params.singleEnd) {
-      """
-      trim_galore --fastqc --gzip $c_r1 $tpc_r1 $nextseq $reads
-      """
-  } else {
-      """
-      trim_galore --paired --fastqc --gzip $c_r1 $c_r2 $tpc_r1 $tpc_r2 $nextseq $reads
-      """
+    script:
+    read1 = reads[0]
+    read2 = reads[1]
+    """
+    flash \\
+        -z \\
+        --read-len ${params.read_length} \\
+        --fragment-len ${params.fragment_length} \\
+        --fragment-len-stddev ${params.fragment_length_stddev} \\
+        --output-prefix mNGplate11_sorted_A12_MYH9-C_flash \\
+        --output-directory . \\
+        --threads ${task.cpus} \\
+        ${read1} ${read2}
+    """
   }
+} else {
+  // If single end, no merging necessary
+  trimmed_reads_flash.into{ merged_reads_crispresso }
 }
+
 
 /*
  * STEP 2 - CRISPResso
@@ -455,7 +459,7 @@ process crispresso {
     tag "$name"
     publishDir "${params.outdir}/cripresso", mode: 'copy'
     input:
-    set val(name), val(experiment_info), file(reads) from trimmed_reads_crispresso
+    set val(name), val(experiment_info), file(reads) from merged_reads_crispresso
 
     output:
     file "${name}"
