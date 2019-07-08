@@ -53,6 +53,7 @@ def helpMessage() {
       --outdir                      The output directory where the results will be saved
       --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits
       -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random mnemonic.
+      --debug                       If set, prints cleaned samplesheet and cleaned reads
 
     AWSBatch options:
       --awsqueue                    The AWSBatch JobQueue that needs to be set when running on AWSBatch
@@ -106,7 +107,7 @@ if( workflow.profile == 'awsbatch') {
     if(!workflow.workDir.startsWith('s3:') || !params.outdir.startsWith('s3:')) exit 1, "Workdir or Outdir not on S3 - specify S3 Buckets for each to run on AWSBatch!"
 }
 
-trim_pattern = params.trim_pattern ? ~params.trim_pattern : null
+trim_pattern = params.trim_pattern ? ~params.trim_pattern : false
 
 if (!params.nhej && !params.hdr){
   exit 1, "Either one of --hdr or --nhej must be specified!"
@@ -122,6 +123,7 @@ if (!params.nhej && !params.hdr){
              .map { row -> [ row[0], [file(row[1][0])]] }
              .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
              .map{ name, reads -> tuple(trim_pattern ? name.replaceAll(trim_pattern, '') : name, reads) }
+             .dump()
              .into { raw_reads_to_join; raw_reads_to_print }
      } else {
          Channel
@@ -129,6 +131,7 @@ if (!params.nhej && !params.hdr){
              .map { row -> [ row[0], [file(row[1][0]), file(row[1][1])]] }
              .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
              .map{ name, reads -> tuple(trim_pattern ? name.replaceAll(trim_pattern, '') : name, reads) }
+             .dump()
              .into { raw_reads_to_join; raw_reads_to_print }
      }
  } else {
@@ -136,6 +139,7 @@ if (!params.nhej && !params.hdr){
          .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
          .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nNB: Path requires at least one * wildcard!\nIf this is single-end data, please specify --singleEnd on the command line." }
          .map{ name, reads -> tuple(trim_pattern ? name.replaceAll(trim_pattern, '') : name, reads) }
+         .dump()
          .into { raw_reads_to_join; raw_reads_to_print }
  }
 
@@ -239,7 +243,7 @@ ${summary.collect { k,v -> "            <dt>$k</dt><dd><samp>${v ?: '<span style
     file samplesheet from original_samplesheet_ch
 
     output:
-    file "samplesheet_cleaned.csv" into samplesheet_cleaned, samplesheet_to_print
+    file "samplesheet_cleaned.csv" into samplesheet_cleaned, samplesheet_cleaned_to_print
 
     script:
     if (params.excel){
@@ -254,28 +258,47 @@ ${summary.collect { k,v -> "            <dt>$k</dt><dd><samp>${v ?: '<span style
  }
 
 
+// samplesheet_cleaned_to_print
+//   .collect()
+//   .splitCsv(header: true)
+//   .map{ row -> tuple(row.sample_id[0], tuple(row.amplicon_seq[0], row.expected_hdr_amplicon_seq[0], row.guide_seq[0]))}
+//   // .ifEmpty{ exit 1, "Samplesheet cleaning failed!" }
+//   .subscribe{ println it }
+
+
+
 if (params.hdr){
  samplesheet_cleaned
    .collect()
    .splitCsv(header:true)
    .map{ row -> tuple(row.sample_id[0], tuple(row.amplicon_seq[0], row.expected_hdr_amplicon_seq[0], row.guide_seq[0]))}
-   .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
+   .ifEmpty { exit 1, "Cannot parse cleaned input samplesheet ${params.samplesheet}" }
    // .subscribe{ println it }
-   .into{ samplesheet_ch; samplesheet_to_print }
+   .dump()
+   .into{ samplesheet_ch; samplesheet_parsed_to_print }
 } else {
  samplesheet_cleaned
    .collect()
    .splitCsv(header:true)
    .map{ row -> tuple(row.sample_id[0], tuple(row.amplicon_seq[0], row.guide_seq[0]))}
-   .ifEmpty { exit 1, "Cannot parse input samplesheet ${params.samplesheet}" }
+   .ifEmpty { exit 1, "Cannot parse cleaned input samplesheet ${params.samplesheet}" }
+   .dump()
    // .subscribe{ println it }
-   .into{ samplesheet_ch; samplesheet_to_print }
+   .into{ samplesheet_ch; samplesheet_parsed_to_print }
 }
 
 
-// // Look up the guide RNA and amplicon sequence for each sample
+if (params.debug){
+  println "Parsed samplesheet:"
+  samplesheet_parsed_to_print
+    .subscribe{ println it }
+}
+
+
+
+// Look up the guide RNA and amplicon sequence for each sample
 samplesheet_ch
-  .join( raw_reads )
+  .join( raw_reads_to_join )
   .ifEmpty{ exit 1, "No samples found matching samplesheet sample_id column" }
   .into{ raw_reads_fastqc; raw_reads_trimmomatic }
 
