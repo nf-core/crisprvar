@@ -121,20 +121,22 @@ if (!params.nhej && !params.hdr){
              .from(params.readPaths)
              .map { row -> [ row[0], [file(row[1][0])]] }
              .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-             .into { raw_reads; raw_reads_to_print }
+             .map{ name, reads -> tuple(trim_pattern ? name.replaceAll(trim_pattern, '') : name, reads) }
+             .into { raw_reads_to_join; raw_reads_to_print }
      } else {
          Channel
              .from(params.readPaths)
              .map { row -> [ row[0], [file(row[1][0]), file(row[1][1])]] }
              .ifEmpty { exit 1, "params.readPaths was empty - no input files supplied" }
-             .into { raw_reads; raw_reads_to_print }
+             .map{ name, reads -> tuple(trim_pattern ? name.replaceAll(trim_pattern, '') : name, reads) }
+             .into { raw_reads_to_join; raw_reads_to_print }
      }
  } else {
      Channel
          .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
          .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nNB: Path requires at least one * wildcard!\nIf this is single-end data, please specify --singleEnd on the command line." }
-         .map{ name, reads -> trim_pattern ? tuple(name.replaceAll(trim_pattern, '') : name, reads) }
-         .into { raw_reads; raw_reads_to_print }
+         .map{ name, reads -> tuple(trim_pattern ? name.replaceAll(trim_pattern, '') : name, reads) }
+         .into { raw_reads_to_join; raw_reads_to_print }
  }
 
 if (params.samplesheet){
