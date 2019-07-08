@@ -300,7 +300,14 @@ if (params.debug){
 samplesheet_ch
   .join( raw_reads_to_join )
   .ifEmpty{ exit 1, "No samples found matching samplesheet sample_id column" }
-  .into{ raw_reads_fastqc; raw_reads_trimmomatic }
+  .into{ raw_reads_fastqc; raw_reads_trimmomatic; joined_reads_to_print }
+
+
+if (params.debug){
+  println "Joined reads:"
+  joined_reads_to_print
+      .subscribe{ println it }
+}
 
 
 
@@ -371,13 +378,12 @@ process trimmomatic{
 
     input:
     set val(name), val(experiment_info), file(reads) from raw_reads_trimmomatic
-    file adapters from adapters_ch
+    file adapters from adapters_ch.collect()
     file wherearemyfiles from ch_where_trim_galore.collect()
 
     output:
-    set val(name), val(experiment_info), file("*fq.gz") into trimmed_reads_crispresso, trimmed_reads_print
+    set val(name), val(experiment_info), file("*_paired.fq.gz") into trimmed_reads_crispresso, trimmed_reads_print
     file "*_trimmomatic.log" into trimgalore_results
-    file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
     file "where_are_my_files.txt"
 
 
@@ -387,8 +393,10 @@ process trimmomatic{
     tpc_r1 = three_prime_clip_r1 > 0 ? "--three_prime_clip_r1 ${three_prime_clip_r1}" : ''
     tpc_r2 = three_prime_clip_r2 > 0 ? "--three_prime_clip_r2 ${three_prime_clip_r2}" : ''
     nextseq = params.trim_nextseq > 0 ? "--nextseq ${params.trim_nextseq}" : ''
+    seed_mismatches = 3
+    palindrome_clip_threshold = 30
     // "ILLUMINACLIP:{adapters}:3:30:1:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36"
-    illuminaclip = "ILLUMINACLIP:${adapters.baseName}:${params.seed_mismatches}:${params.palindrom_clip_threshold}:1:1:true"
+    illuminaclip = "ILLUMINACLIP:${adapters.baseName}:${seed_mismatches}:${palindrome_clip_threshold}:1:1:true"
     trimmomatic_options_str = "${illuminaclip} LEADING:${clip_r1} TRAILING:${three_prime_clip_r1} SLIDINGWINDOW:4:15 MINLEN:36"
     r1_paired = "${name}_R1_paired.fq.gz"
     r1_unpaired = "${name}_R1_unpaired.fq.gz"
@@ -397,22 +405,32 @@ process trimmomatic{
     if (params.singleEnd) {
         """
         trimmomatic \\
-            -phred33 $reads \\
+            -phred33 ${reads} \\
             ${r1_paired} ${r1_unpaired} \\
-            $trimmomatic_options_str
+            ${trimmomatic_options_str}
         """
     } else {
         """
-        trimmomatic \\
+        trimmomatic PE \\
             -phred33 $reads \\
             ${r1_paired} ${r1_unpaired} \\
             ${r2_paired} ${r2_unpaired} \\
-            $trimmomatic_options_str \\
-            2&>1 \\
+            ${trimmomatic_options_str} \\
+            2>&1 \\
             | tee > ${name}_trimmomatic.log
         """
     }
 }
+
+
+if (params.debug){
+  println "Joined reads:"
+  trimmed_reads_print
+      .subscribe{ println it }
+}
+
+
+
 
 /*
  * STEP 2 - CRISPResso
@@ -446,8 +464,8 @@ process crispresso {
       """
       CRISPResso -r1 ${reads[0]} \\
         -r2 ${reads[1]} \\
-         --amplicon_seq $amplicon \\
-         --guide_seq $guide \\
+         --amplicon_seq ${amplicon} \\
+         --guide_seq ${guide} \\
          --output_folder ${name}
       """
     }
