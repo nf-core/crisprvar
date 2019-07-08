@@ -170,7 +170,7 @@ if (params.debug){
 
 
 Channel.fromPath("$baseDir/assets/where_are_my_files.txt", checkIfExists: true)
-       .into{ch_where_adapterremoval; ch_where_star; ch_where_hisat2; ch_where_hisat2_sort}
+       .into{ch_where_fastp; ch_where_star; ch_where_hisat2; ch_where_hisat2_sort}
 
 // Define regular variables so that they can be overwritten
 clip_r1 = params.clip_r1
@@ -311,7 +311,7 @@ if (params.debug){
 samplesheet_ch
   .join( raw_reads_to_join )
   .ifEmpty{ exit 1, "No samples found matching samplesheet sample_id column" }
-  .into{ joined_reads_fastqc; joined_reads_adapterremoval; joined_reads_to_print }
+  .into{ joined_reads_fastqc; joined_reads_fastp; joined_reads_to_print }
 
 
 if (params.debug){
@@ -371,12 +371,12 @@ process fastqc {
 
 
 /*
- * STEP 2 - AdapterRemoval for read trimming + merging
+ * STEP 2 - fastp for read trimming + merging
  */
-process adapaterremoval {
+process fastp {
     label 'low_memory'
     tag "$name"
-    publishDir "${params.outdir}/adapterremoval", mode: 'copy',
+    publishDir "${params.outdir}/fastp", mode: 'copy',
         saveAs: {filename ->
             if (!params.saveTrimmed && filename == "where_are_my_files.txt") filename
             else if (params.saveTrimmed && filename != "where_are_my_files.txt") filename
@@ -384,36 +384,38 @@ process adapaterremoval {
         }
 
     input:
-    set val(name), val(experiment_info), file(reads) from joined_reads_adapterremoval
-    file wherearemyfiles from ch_where_adapterremoval.collect()
+    set val(name), val(experiment_info), file(reads) from joined_reads_fastp
+    file wherearemyfiles from ch_where_fastp.collect()
 
     output:
-    set val(name), val(experiment_info), file("*collapsed.gz") into trimmed_reads_crispresso, trimmed_reads_print
-    file "*settings" into adapterremoval_results
+    set val(name), val(experiment_info), file("*_both_merged.fastq.gz") into trimmed_reads_crispresso, trimmed_reads_print
+    file "*fastp.json" into fastp_results
     file "where_are_my_files.txt"
 
 
     script:
     if (params.singleEnd) {
         """
-        AdapterRemoval \\
-            --file1 ${reads} \\
+        fastp \\
+            --in1 ${reads} \\
             --trimns \\
             --basename ${name} \\
             --trimqualities
         """
     } else {
-      // AdapterRemoval --file1 reads_1.fq --file2 reads_2.fq --basename output_paired --trimns --trimqualities --collapse
-
         """
-        AdapterRemoval \\
-            --file1 ${reads[0]} \\
-            --file2 ${reads[1]} \\
-            --trimns \\
-            --basename ${name} \\
-            --trimqualities \\
-            --gzip \\
-            --collapse
+        fastp \\
+            --in1 ${reads[0]} \\
+            --in2 ${reads[1]} \\
+            --merge \\
+            --merged_out ${name}_both_merged.fastq.gz \\
+            --out1 ${name}_R1_unmerged.fastq.gz \\
+            --out2 ${name}_R2_unmerged.fastq.gz \\
+            --unpaired1 ${name}_R1_unpaired.fastq.gz \\
+            --unpaired2 ${name}_R2_unpaired.fastq.gz \\
+            --correction \\
+            --json ${name}_fastp.json \\
+            --html ${name}_fastp.html
         """
     }
 }
@@ -470,7 +472,7 @@ process multiqc {
     input:
     file multiqc_config
     file (fastqc:'fastqc/*') from fastqc_results.collect().ifEmpty([])
-    file ('adapterremoval/*') from adapterremoval_results.collect()
+    file ('fastp/*') from fastp_results.collect()
     file ('software_versions/*') from software_versions_yaml
     file workflow_summary from create_workflow_summary(summary)
 
@@ -482,7 +484,7 @@ process multiqc {
     rtitle = custom_runName ? "--title \"$custom_runName\"" : ''
     rfilename = custom_runName ? "--filename " + custom_runName.replaceAll('\\W','_').replaceAll('_+','_') + "_multiqc_report" : ''
     """
-    multiqc -f $rtitle $rfilename --config $multiqc_config .
+    multiqc -f $rtitle $rfilename --config $multiqc_config . -m fastqc -m fastp
     """
 }
 
