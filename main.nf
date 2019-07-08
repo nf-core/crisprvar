@@ -311,9 +311,14 @@ if (params.debug){
 samplesheet_ch
   .join( raw_reads_to_join )
   .ifEmpty{ exit 1, "No samples found matching samplesheet sample_id column" }
-  .into{ raw_reads_fastqc; raw_reads_trimgalore }
+  .into{ raw_reads_fastqc; raw_reads_trimmomatic; joined_reads_to_print }
 
 
+if (params.debug){
+  println "Joined reads:"
+  joined_reads_to_print
+      .subscribe{ println it }
+}
 
 /*
  * Parse software version numbers
