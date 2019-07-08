@@ -373,7 +373,7 @@ process fastqc {
 /*
  * STEP 2 - AdapterRemoval for read trimming + merging
  */
-process trim_galore {
+process adapaterremoval {
     label 'low_memory'
     tag "$name"
     publishDir "${params.outdir}/adapterremoval", mode: 'copy',
@@ -405,11 +405,16 @@ process trim_galore {
         trim_galore --fastqc --gzip $c_r1 $tpc_r1 $nextseq $reads
         """
     } else {
+      // AdapterRemoval --file1 reads_1.fq --file2 reads_2.fq --basename output_paired --trimns --trimqualities --collapse
+
         """
         AdapterRemoval \\
-            --collapsed \\
+            --file1 ${reads[0]} \\
+            --file2 ${reads[1]} \\
+            --trimns \\
             --basename ${name} \\
-            --paired --fastqc --gzip $c_r1 $c_r2 $tpc_r1 $tpc_r2 $nextseq $reads
+            --trimqualities \\
+            --collapse
         """
     }
 }
