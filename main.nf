@@ -170,7 +170,7 @@ if (params.debug){
 
 
 Channel.fromPath("$baseDir/assets/where_are_my_files.txt", checkIfExists: true)
-       .into{ch_where_trim_galore; ch_where_star; ch_where_hisat2; ch_where_hisat2_sort}
+       .into{ch_where_adapterremoval; ch_where_star; ch_where_hisat2; ch_where_hisat2_sort}
 
 // Define regular variables so that they can be overwritten
 clip_r1 = params.clip_r1
@@ -371,23 +371,21 @@ process fastqc {
 
 
 /*
- * STEP 2 - Trim Galore!
+ * STEP 2 - AdapterRemoval for read trimming + merging
  */
 process trim_galore {
     label 'low_memory'
     tag "$name"
-    publishDir "${params.outdir}/trim_galore", mode: 'copy',
+    publishDir "${params.outdir}/adapterremoval", mode: 'copy',
         saveAs: {filename ->
-            if (filename.indexOf("_fastqc") > 0) "FastQC/$filename"
-            else if (filename.indexOf("trimming_report.txt") > 0) "logs/$filename"
-            else if (!params.saveTrimmed && filename == "where_are_my_files.txt") filename
+            if (!params.saveTrimmed && filename == "where_are_my_files.txt") filename
             else if (params.saveTrimmed && filename != "where_are_my_files.txt") filename
             else null
         }
 
     input:
-    set val(name), val(experiment_info), file(reads) from raw_reads_trimgalore
-    file wherearemyfiles from ch_where_trim_galore.collect()
+    set val(name), val(experiment_info), file(reads) from raw_reads_adapterremoval
+    file wherearemyfiles from ch_where_adapterremoval.collect()
 
     output:
     set val(name), val(experiment_info), file("*fq.gz") into trimmed_reads_crispresso, trimmed_reads_print
@@ -408,7 +406,10 @@ process trim_galore {
         """
     } else {
         """
-        trim_galore --paired --fastqc --gzip $c_r1 $c_r2 $tpc_r1 $tpc_r2 $nextseq $reads
+        AdapterRemoval \\
+            --collapsed \\
+            --basename ${name} \\
+            --paired --fastqc --gzip $c_r1 $c_r2 $tpc_r1 $tpc_r2 $nextseq $reads
         """
     }
 }
