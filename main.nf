@@ -37,6 +37,7 @@ def helpMessage() {
       --excel                       Specifies that input sample sheet is an .xslx rather than CSV file
 
     Trimming:
+      --skipTrimming                Skip trimming altogether
       --clip_r1 [int]               Instructs Trim Galore to remove bp from the 5' end of read 1 (or single-end reads)
       --clip_r2 [int]               Instructs Trim Galore to remove bp from the 5' end of read 2 (paired-end reads only)
       --three_prime_clip_r1 [int]   Instructs Trim Galore to remove bp from the 3' end of read 1 AFTER adapter/quality trimming has been performed
@@ -311,7 +312,7 @@ if (params.debug){
 samplesheet_ch
   .join( raw_reads_to_join )
   .ifEmpty{ exit 1, "No samples found matching samplesheet sample_id column" }
-  .into{ raw_reads_fastqc; raw_reads_trimmomatic; joined_reads_to_print }
+  .into{ raw_reads_fastqc; raw_reads_trimgalore; joined_reads_to_print }
 
 
 if (params.debug){
@@ -368,50 +369,55 @@ process fastqc {
 
 
 
-
-
 /*
  * STEP 2 - Trim Galore!
  */
-process trim_galore {
-    label 'low_memory'
-    tag "$name"
-    publishDir "${params.outdir}/trim_galore", mode: 'copy',
-        saveAs: {filename ->
-            if (filename.indexOf("_fastqc") > 0) "FastQC/$filename"
-            else if (filename.indexOf("trimming_report.txt") > 0) "logs/$filename"
-            else if (!params.saveTrimmed && filename == "where_are_my_files.txt") filename
-            else if (params.saveTrimmed && filename != "where_are_my_files.txt") filename
-            else null
-        }
+if (params.skipTrimming){
+  trimgalore_results = Channel.empty()
+  raw_reads_trimgalore
+    .into{ trimmed_reads_print; trimmed_reads_crispresso }
+} else {
+  process trim_galore {
+      label 'low_memory'
+      tag "$name"
+      publishDir "${params.outdir}/trim_galore", mode: 'copy',
+          saveAs: {filename ->
+              if (filename.indexOf("_fastqc") > 0) "FastQC/$filename"
+              else if (filename.indexOf("trimming_report.txt") > 0) "logs/$filename"
+              else if (!params.saveTrimmed && filename == "where_are_my_files.txt") filename
+              else if (params.saveTrimmed && filename != "where_are_my_files.txt") filename
+              else null
+          }
 
-    input:
-    set val(name), val(experiment_info), file(reads) from raw_reads_trimgalore
-    file wherearemyfiles from ch_where_trim_galore.collect()
+      input:
+      set val(name), val(experiment_info), file(reads) from raw_reads_trimgalore
+      file wherearemyfiles from ch_where_trim_galore.collect()
 
-    output:
-    set val(name), val(experiment_info), file("*fq.gz") into trimmed_reads_crispresso, trimmed_reads_print
-    file "*trimming_report.txt" into trimgalore_results
-    file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
-    file "where_are_my_files.txt"
+      output:
+      set val(name), val(experiment_info), file("*fq.gz") into trimmed_reads_crispresso, trimmed_reads_print
+      file "*trimming_report.txt" into trimgalore_results
+      file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
+      file "where_are_my_files.txt"
 
 
-    script:
-    c_r1 = clip_r1 > 0 ? "--clip_r1 ${clip_r1}" : ''
-    c_r2 = clip_r2 > 0 ? "--clip_r2 ${clip_r2}" : ''
-    tpc_r1 = three_prime_clip_r1 > 0 ? "--three_prime_clip_r1 ${three_prime_clip_r1}" : ''
-    tpc_r2 = three_prime_clip_r2 > 0 ? "--three_prime_clip_r2 ${three_prime_clip_r2}" : ''
-    nextseq = params.trim_nextseq > 0 ? "--nextseq ${params.trim_nextseq}" : ''
-    if (params.singleEnd) {
-        """
-        trim_galore --fastqc --gzip $c_r1 $tpc_r1 $nextseq $reads
-        """
-    } else {
-        """
-        trim_galore --paired --fastqc --gzip $c_r1 $c_r2 $tpc_r1 $tpc_r2 $nextseq $reads
-        """
-    }
+      script:
+      c_r1 = clip_r1 > 0 ? "--clip_r1 ${clip_r1}" : ''
+      c_r2 = clip_r2 > 0 ? "--clip_r2 ${clip_r2}" : ''
+      tpc_r1 = three_prime_clip_r1 > 0 ? "--three_prime_clip_r1 ${three_prime_clip_r1}" : ''
+      tpc_r2 = three_prime_clip_r2 > 0 ? "--three_prime_clip_r2 ${three_prime_clip_r2}" : ''
+      nextseq = params.trim_nextseq > 0 ? "--nextseq ${params.trim_nextseq}" : ''
+      if (params.singleEnd) {
+          """
+          trim_galore --fastqc --gzip $c_r1 $tpc_r1 $nextseq $reads
+          """
+      } else {
+          """
+          trim_galore --paired --fastqc --gzip $c_r1 $c_r2 $tpc_r1 $tpc_r2 $nextseq $reads
+          """
+      }
+  }
 }
+
 
 /*
  * STEP 2 - CRISPResso
