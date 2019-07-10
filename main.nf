@@ -430,6 +430,7 @@ if (!params.singleEnd) {
 
     output:
     set val(name), val(experiment_info), file("*extendedFrags.fastq.gz") into merged_reads_crispresso, merged_reads_print
+    file "${name}_flash.log" into flash_logs
     file "where_are_my_files.txt"
 
     script:
@@ -444,7 +445,8 @@ if (!params.singleEnd) {
         --output-prefix mNGplate11_sorted_A12_MYH9-C_flash \\
         --output-directory . \\
         --threads ${task.cpus} \\
-        ${read1} ${read2}
+        ${read1} ${read2} \\
+        2>&1 | tee ${name}_flash.log
     """
   }
 } else {
@@ -503,6 +505,7 @@ process multiqc {
     file multiqc_config
     file (fastqc:'fastqc/*') from fastqc_results.collect().ifEmpty([])
     file ('trimgalore/*') from trimgalore_results.collect()
+    file ('flash/*') from flash_logs.collect()
     file ('software_versions/*') from software_versions_yaml
     file workflow_summary from create_workflow_summary(summary)
 
@@ -514,7 +517,7 @@ process multiqc {
     rtitle = custom_runName ? "--title \"$custom_runName\"" : ''
     rfilename = custom_runName ? "--filename " + custom_runName.replaceAll('\\W','_').replaceAll('_+','_') + "_multiqc_report" : ''
     """
-    multiqc -f $rtitle $rfilename --config $multiqc_config .
+    multiqc -f $rtitle $rfilename --config $multiqc_config . -m flash
     """
 }
 
