@@ -181,19 +181,6 @@ if (params.adapters){
 }
 
 
-if (params.debug){
-  println "original_samplesheet_to_print_ch"
-  original_samplesheet_to_print_ch.println()
-
-  println "Input reads:"
-  raw_reads_to_print.subscribe{ println it }
-}
-
-
- /*
-  * PREPROCESSING - Remove DOS line endings
-  */
-
 
 
 Channel.fromPath("$baseDir/assets/where_are_my_files.txt", checkIfExists: true)
