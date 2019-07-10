@@ -424,7 +424,7 @@ process crispresso {
 
     output:
     file "${name}"
-    file "${name}/*/*CRISPResso_RUNNING_LOG.txt" into crispresso_logs
+    file "${name}_CRISPResso_RUNNING_LOG.txt" into crispresso_logs
 
     script:
 
@@ -439,6 +439,7 @@ process crispresso {
          --expected_hdr_amplicon_seq $amplicon_hdr \\
          --guide_seq $guide \\
          --output_folder ${name}
+      cp ${name}/*/*CRISPResso_RUNNING_LOG.txt ${name}_CRISPResso_RUNNING_LOG.txt
       """
     } else {
       amplicon = experiment_info[0]
@@ -449,6 +450,7 @@ process crispresso {
          --amplicon_seq $amplicon \\
          --guide_seq $guide \\
          --output_folder ${name}
+      cp ${name}/*/*CRISPResso_RUNNING_LOG.txt ${name}_CRISPResso_RUNNING_LOG.txt
       """
     }
 }
@@ -476,7 +478,7 @@ process multiqc {
     rtitle = custom_runName ? "--title \"$custom_runName\"" : ''
     rfilename = custom_runName ? "--filename " + custom_runName.replaceAll('\\W','_').replaceAll('_+','_') + "_multiqc_report" : ''
     """
-    multiqc -f $rtitle $rfilename --config $multiqc_config . -m trimgalore -m flash
+    multiqc -f $rtitle $rfilename --config $multiqc_config . -m flash
     """
 }
 
