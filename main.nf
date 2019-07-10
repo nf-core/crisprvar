@@ -153,6 +153,12 @@ if (params.samplesheet){
   exit 1, "Must provide a samplesheet csv or Excel file"
 }
 
+if (params.adapters){
+  adapters_ch = Channel
+      .fromPath(params.adapters)
+      .ifEmpty{ exit 1, "Cannot find Adapters file: ${params.adapters}" }
+}
+
 
 if (params.debug){
   println "original_samplesheet_to_print_ch"
@@ -317,7 +323,7 @@ if (params.debug){
 samplesheet_ch
   .join( raw_reads_to_join )
   .ifEmpty{ exit 1, "No samples found matching samplesheet sample_id column" }
-  .into{ raw_reads_fastqc; raw_reads_trimgalore; joined_reads_to_print }
+  .into{ raw_reads_fastqc; raw_reads_trimmomatic; joined_reads_to_print }
 
 
 if (params.debug){
@@ -405,7 +411,7 @@ process trimmomatic{
 
     output:
     set val(name), val(experiment_info), file("*_paired.fq.gz") into trimmed_reads_crispresso, trimmed_reads_print
-    file "*_trimmomatic.log" into trimgalore_results
+    file "*_trimmomatic.log" into trimmomatic_results
     file "where_are_my_files.txt"
 
 
@@ -426,7 +432,7 @@ process trimmomatic{
     r2_unpaired = "${name}_R2_unpaired.fq.gz"
     if (params.singleEnd) {
         """
-        trimmomatic \\
+        trimmomatic SE \\
             -phred33 ${reads} \\
             ${r1_paired} ${r1_unpaired} \\
             ${trimmomatic_options_str}
@@ -506,7 +512,7 @@ process multiqc {
     input:
     file multiqc_config
     file (fastqc:'fastqc/*') from fastqc_results.collect().ifEmpty([])
-    file ('trimgalore/*') from trimgalore_results.collect()
+    file ('trimmomatic/*') from trimmomatic_results.collect()
     file ('crispresso/*') from crispresso_logs.collect()
     file ('software_versions/*') from software_versions_yaml
     file workflow_summary from create_workflow_summary(summary)
