@@ -327,6 +327,11 @@ if (params.debug){
 }
 
 
+if (params.debug){
+  println "Joined reads:"
+  joined_reads_to_print
+      .subscribe{ println it }
+}
 
 /*
  * Parse software version numbers
