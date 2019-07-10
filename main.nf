@@ -436,6 +436,7 @@ process crispresso {
 
     output:
     file "${name}"
+    file "${name}_CRISPResso_RUNNING_LOG.txt" into crispresso_logs
 
     script:
 
@@ -448,7 +449,9 @@ process crispresso {
          --amplicon_seq $amplicon_wt \\
          --expected_hdr_amplicon_seq $amplicon_hdr \\
          --guide_seq $guide \\
-         --output_folder ${name}
+         --output_folder ${name} \\
+         --debug
+      cp ${name}/*/*CRISPResso_RUNNING_LOG.txt ${name}_CRISPResso_RUNNING_LOG.txt
       """
     } else {
       amplicon = experiment_info[0]
@@ -457,7 +460,9 @@ process crispresso {
       CRISPResso -r1 ${reads} \\
          --amplicon_seq $amplicon \\
          --guide_seq $guide \\
-         --output_folder ${name}
+         --output_folder ${name} \\
+         --debug
+      cp ${name}/*/*CRISPResso_RUNNING_LOG.txt ${name}_CRISPResso_RUNNING_LOG.txt
       """
     }
 }
@@ -473,6 +478,7 @@ process multiqc {
     file multiqc_config
     file (fastqc:'fastqc/*') from fastqc_results.collect().ifEmpty([])
     file ('fastp/*') from fastp_results.collect()
+    file ('crispresso/*') from crispresso_logs.collect()
     file ('software_versions/*') from software_versions_yaml
     file workflow_summary from create_workflow_summary(summary)
 
