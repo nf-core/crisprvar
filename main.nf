@@ -144,9 +144,11 @@ if (!params.nhej && !params.hdr){
  }
 
 if (params.samplesheet){
-  original_samplesheet_ch = Channel
+  Channel
       .fromPath(params.samplesheet)
       .ifEmpty{ exit 1, "Cannot find samplesheet file: ${params.samplesheet}" }
+      .dump()
+      .into { original_samplesheet_ch; original_samplesheet_to_print_ch }
 } else {
   exit 1, "Must provide a samplesheet csv or Excel file"
 }
