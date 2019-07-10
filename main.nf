@@ -425,7 +425,6 @@ process trimmomatic{
     }
 }
 
-<<<<<<< HEAD
 
 if (params.debug){
   println "Joined reads:"
@@ -436,8 +435,6 @@ if (params.debug){
 
 
 
-=======
->>>>>>> Do samplesheet cleaning
 /*
  * STEP 2 - CRISPResso
  */
