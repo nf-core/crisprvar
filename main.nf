@@ -316,9 +316,14 @@ if (params.debug){
 samplesheet_ch
   .join( raw_reads_to_join )
   .ifEmpty{ exit 1, "No samples found matching samplesheet sample_id column" }
-  .into{ raw_reads_fastqc; raw_reads_trimgalore }
+  .into{ raw_reads_fastqc; raw_reads_trimgalore; joined_reads_to_print }
 
 
+if (params.debug){
+  println "Joined reads:"
+  joined_reads_to_print
+      .subscribe{ println it }
+}
 
 /*
  * Parse software version numbers
@@ -466,6 +471,7 @@ process crispresso {
 
     output:
     file "${name}"
+    file "${name}_CRISPResso_RUNNING_LOG.txt" into crispresso_logs
 
     script:
 
@@ -478,7 +484,9 @@ process crispresso {
          --amplicon_seq $amplicon_wt \\
          --expected_hdr_amplicon_seq $amplicon_hdr \\
          --guide_seq $guide \\
-         --output_folder ${name}
+         --output_folder ${name} \\
+         --debug
+      cp ${name}/*/*CRISPResso_RUNNING_LOG.txt ${name}_CRISPResso_RUNNING_LOG.txt
       """
     } else {
       amplicon = experiment_info[0]
@@ -487,7 +495,9 @@ process crispresso {
       CRISPResso -r1 ${reads} \\
          --amplicon_seq $amplicon \\
          --guide_seq $guide \\
-         --output_folder ${name}
+         --output_folder ${name} \\
+         --debug
+      cp ${name}/*/*CRISPResso_RUNNING_LOG.txt ${name}_CRISPResso_RUNNING_LOG.txt
       """
     }
 }
@@ -504,6 +514,7 @@ process multiqc {
     file (fastqc:'fastqc/*') from fastqc_results.collect().ifEmpty([])
     file ('trimgalore/*') from trimgalore_results.collect()
     file ('flash/*') from flash_logs.collect()
+    file ('crispresso/*') from crispresso_logs.collect()
     file ('software_versions/*') from software_versions_yaml
     file workflow_summary from create_workflow_summary(summary)
 
