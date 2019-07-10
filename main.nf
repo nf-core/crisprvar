@@ -425,7 +425,7 @@ process trimmomatic{
     file wherearemyfiles from ch_where_trim_galore.collect()
 
     output:
-    set val(name), val(experiment_info), file("*_paired.fq.gz") into trimmed_reads_crispresso, trimmed_reads_print
+    set val(name), val(experiment_info), file("*_paired.fq.gz") into trimmed_reads_flash, trimmed_reads_print
     file "*_trimmomatic.log" into trimmomatic_results
     file "where_are_my_files.txt"
 
@@ -474,6 +474,48 @@ if (params.debug){
 
 
 
+if (!params.singleEnd) {
+  process flash {
+    label 'low_memory'
+    tag "$name"
+    publishDir "${params.outdir}/flash", mode: 'copy',
+        saveAs: {filename ->
+            if (!params.saveMerged && filename == "where_are_my_files.txt") filename
+            else if (params.saveMerged && filename != "where_are_my_files.txt") filename
+            else null
+        }
+
+    input:
+    set val(name), val(experiment_info), file(reads) from trimmed_reads_flash
+    file wherearemyfiles from ch_where_flash.collect()
+
+    output:
+    set val(name), val(experiment_info), file("*extendedFrags.fastq.gz") into merged_reads_crispresso, merged_reads_print
+    file "${name}_flash.log" into flash_logs
+    file "where_are_my_files.txt"
+
+    script:
+    read1 = reads[0]
+    read2 = reads[1]
+    """
+    flash \\
+        -z \\
+        --read-len ${params.read_length} \\
+        --fragment-len ${params.fragment_length} \\
+        --fragment-len-stddev ${params.fragment_length_stddev} \\
+        --output-prefix mNGplate11_sorted_A12_MYH9-C_flash \\
+        --output-directory . \\
+        --threads ${task.cpus} \\
+        ${read1} ${read2} \
+        2>&1 | tee ${name}_flash.log
+    """
+  }
+} else {
+  // If single end, no merging necessary
+  trimmed_reads_flash.into{ merged_reads_crispresso }
+}
+
+
 
 /*
  * STEP 2 - CRISPResso
@@ -495,8 +537,7 @@ process crispresso {
       amplicon_hdr = experiment_info[1]
       guide = experiment_info[2]
       """
-      CRISPResso -r1 ${reads[0]} \\
-        -r2 ${reads[1]} \\
+      CRISPResso -r1 ${reads} \\
          --amplicon_seq $amplicon_wt \\
          --expected_hdr_amplicon_seq $amplicon_hdr \\
          --guide_seq $guide \\
@@ -507,8 +548,7 @@ process crispresso {
       amplicon = experiment_info[0]
       guide = experiment_info[1]
       """
-      CRISPResso -r1 ${reads[0]} \\
-        -r2 ${reads[1]} \\
+      CRISPResso -r1 ${reads} \\
          --amplicon_seq ${amplicon} \\
          --guide_seq ${guide} \\
          --output_folder ${name}
@@ -528,6 +568,7 @@ process multiqc {
     file multiqc_config
     file (fastqc:'fastqc/*') from fastqc_results.collect().ifEmpty([])
     file ('trimmomatic/*') from trimmomatic_results.collect()
+    file ('flash/*') from flash_logs.collect()
     file ('crispresso/*') from crispresso_logs.collect()
     file ('software_versions/*') from software_versions_yaml
     file workflow_summary from create_workflow_summary(summary)
