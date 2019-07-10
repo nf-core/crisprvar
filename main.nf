@@ -474,8 +474,7 @@ process crispresso {
       amplicon_hdr = experiment_info[1]
       guide = experiment_info[2]
       """
-      CRISPResso -r1 ${reads[0]} \\
-        -r2 ${reads[1]} \\
+      CRISPResso -r1 ${reads} \\
          --amplicon_seq $amplicon_wt \\
          --expected_hdr_amplicon_seq $amplicon_hdr \\
          --guide_seq $guide \\
@@ -485,8 +484,7 @@ process crispresso {
       amplicon = experiment_info[0]
       guide = experiment_info[1]
       """
-      CRISPResso -r1 ${reads[0]} \\
-        -r2 ${reads[1]} \\
+      CRISPResso -r1 ${reads} \\
          --amplicon_seq $amplicon \\
          --guide_seq $guide \\
          --output_folder ${name}
