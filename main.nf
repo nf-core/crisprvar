@@ -392,6 +392,7 @@ process trim_galore {
     output:
     set val(name), val(experiment_info), file("*fq.gz") into trimmed_reads_flash, trimmed_reads_print
     file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
+    file "*trimming_report.txt" into trimgalore_results
     file "where_are_my_files.txt"
 
 
