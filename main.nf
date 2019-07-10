@@ -151,6 +151,7 @@ if (params.samplesheet){
   exit 1, "Must provide a samplesheet csv or Excel file"
 }
 
+
 if (params.adapters){
   adapters_ch = Channel
       .fromPath(params.adapters)
@@ -422,6 +423,7 @@ process trimmomatic{
     }
 }
 
+<<<<<<< HEAD
 
 if (params.debug){
   println "Joined reads:"
@@ -432,6 +434,8 @@ if (params.debug){
 
 
 
+=======
+>>>>>>> Do samplesheet cleaning
 /*
  * STEP 2 - CRISPResso
  */
