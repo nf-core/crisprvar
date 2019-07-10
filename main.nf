@@ -444,7 +444,8 @@ process crispresso {
          --amplicon_seq $amplicon_wt \\
          --expected_hdr_amplicon_seq $amplicon_hdr \\
          --guide_seq $guide \\
-         --output_folder ${name}
+         --output_folder ${name} \\
+         --debug
       cp ${name}/*/*CRISPResso_RUNNING_LOG.txt ${name}_CRISPResso_RUNNING_LOG.txt
       """
     } else {
@@ -455,7 +456,8 @@ process crispresso {
         -r2 ${reads[1]} \\
          --amplicon_seq $amplicon \\
          --guide_seq $guide \\
-         --output_folder ${name}
+         --output_folder ${name} \\
+         --debug
       cp ${name}/*/*CRISPResso_RUNNING_LOG.txt ${name}_CRISPResso_RUNNING_LOG.txt
       """
     }
