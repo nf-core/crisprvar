@@ -157,6 +157,8 @@ if (params.adapters){
   adapters_ch = Channel
       .fromPath(params.adapters)
       .ifEmpty{ exit 1, "Cannot find Adapters file: ${params.adapters}" }
+} else {
+  exit 1, "Must provide adapters!"
 }
 
 
@@ -174,12 +176,18 @@ if (params.debug){
   */
 
 
-if (params.adapters){
-  adapters_ch = Channel
-      .fromPath(params.adapters)
-      .ifEmpty{ exit 1, "Cannot find Adapters file: ${params.adapters}" }
+if (params.debug){
+  println "original_samplesheet_to_print_ch"
+  original_samplesheet_to_print_ch.println()
+
+  println "Input reads:"
+  raw_reads_to_print.subscribe{ println it }
 }
 
+
+ /*
+  * PREPROCESSING - Remove DOS line endings
+  */
 
 
 
@@ -511,7 +519,7 @@ process crispresso {
     tag "$name"
     publishDir "${params.outdir}/cripresso", mode: 'copy'
     validExitStatus 0,1,2,255
-    
+
     input:
     set val(name), val(experiment_info), file(reads) from trimmed_reads_crispresso
 
