@@ -192,7 +192,7 @@ if (params.debug){
 
 
 Channel.fromPath("$baseDir/assets/where_are_my_files.txt", checkIfExists: true)
-       .into{ch_where_trim_galore; ch_where_star; ch_where_hisat2; ch_where_hisat2_sort}
+       .into{ch_where_trim_galore; ch_where_star; ch_where_flash; ch_where_hisat2_sort}
 
 // Define regular variables so that they can be overwritten
 clip_r1 = params.clip_r1
