@@ -269,7 +269,7 @@ ${summary.collect { k,v -> "            <dt>$k</dt><dd><samp>${v ?: '<span style
  */
 
  process clean_samplesheet {
-    tag "$name"
+    tag "${samplesheet.baseName}"
     publishDir "${params.outdir}/samplesheet", mode: 'copy'
 
     input:
