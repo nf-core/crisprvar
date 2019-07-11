@@ -521,7 +521,7 @@ process crispresso {
     validExitStatus 0,1,2,255
 
     input:
-    set val(name), val(experiment_info), file(reads) from trimmed_reads_crispresso
+    set val(name), val(experiment_info), file(reads) from merged_reads_crispresso
 
     output:
     file "${name}"
