@@ -1,4 +1,4 @@
-FROM nfcore/base:1.10.1
+FROM nfcore/base:1.10.2
 LABEL authors="Project author name (use a comma to separate multiple names)." \
       description="Docker image containing all software requirements for the nf-core/crisprvar pipeline"
 

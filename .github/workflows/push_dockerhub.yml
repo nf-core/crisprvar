@@ -8,32 +8,33 @@ on:
   release:
     types: [published]
 
-push_dockerhub:
-  name: Push new Docker image to Docker Hub
-  runs-on: ubuntu-latest
-  # Only run for the nf-core repo, for releases and merged PRs
-  if: ${{ github.repository == 'nf-core/crisprvar' }}
-  env:
-    DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-    DOCKERHUB_PASS: ${{ secrets.DOCKERHUB_PASS }}
-  steps:
-    - name: Check out pipeline code
-      uses: actions/checkout@v2
+jobs:
+  push_dockerhub:
+    name: Push new Docker image to Docker Hub
+    runs-on: ubuntu-latest
+    # Only run for the nf-core repo, for releases and merged PRs
+    if: ${{ github.repository == 'nf-core/crisprvar' }}
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASS: ${{ secrets.DOCKERHUB_PASS }}
+    steps:
+      - name: Check out pipeline code
+        uses: actions/checkout@v2
 
-    - name: Build new docker image
-      run: docker build --no-cache . -t nfcore/crisprvar:latest
+      - name: Build new docker image
+        run: docker build --no-cache . -t nfcore/crisprvar:latest
 
-    - name: Push Docker image to DockerHub (dev)
-      if: ${{ github.event_name == 'push' }}
-      run: |
-        echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-        docker tag nfcore/crisprvar:latest nfcore/crisprvar:dev
-        docker push nfcore/crisprvar:dev
+      - name: Push Docker image to DockerHub (dev)
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          docker tag nfcore/crisprvar:latest nfcore/crisprvar:dev
+          docker push nfcore/crisprvar:dev
 
-    - name: Push Docker image to DockerHub (release)
-      if: ${{ github.event_name == 'release' }}
-      run: |
-        echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-        docker push nfcore/crisprvar:latest
-        docker tag nfcore/crisprvar:latest nfcore/crisprvar:${{ github.event.release.tag_name }}
-        docker push nfcore/crisprvar:${{ github.event.release.tag_name }}
+      - name: Push Docker image to DockerHub (release)
+        if: ${{ github.event_name == 'release' }}
+        run: |
+          echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          docker push nfcore/crisprvar:latest
+          docker tag nfcore/crisprvar:latest nfcore/crisprvar:${{ github.event.release.tag_name }}
+          docker push nfcore/crisprvar:${{ github.event.release.tag_name }}
