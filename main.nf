@@ -4,7 +4,8 @@
     nf-core/crisprvar
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     Github : https://github.com/nf-core/crisprvar
-Website: https://nf-co.re/crisprvar
+
+    Website: https://nf-co.re/crisprvar
     Slack  : https://nfcore.slack.com/channels/crisprvar
 ----------------------------------------------------------------------------------------
 */
